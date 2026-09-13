@@ -1,0 +1,331 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  margin: 0;
+  color: #1a1a1a;
+  background: #f7f7f8;
+}
+
+/* author-stylesheet display rules (e.g. .centered { display: flex }) beat the
+   UA's default [hidden] { display: none } at equal specificity, so without
+   this, elements toggled via the `hidden` attribute stay visible */
+[hidden] {
+  display: none !important;
+}
+
+.centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 1rem;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid #e2e2e2;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem 0;
+}
+
+.tabs button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d0d0d0;
+  background: #fff;
+  color: #1a1a1a;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  background: #1a1a1a;
+  color: #fff;
+  border-color: #1a1a1a;
+}
+
+main {
+  padding: 1.5rem;
+}
+
+.partition-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.item-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 1.5rem;
+  background: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #e2e2e2;
+}
+
+.item-form label,
+.item-form .photo-field-group {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  color: #555;
+  gap: 0.25rem;
+}
+
+.item-form input:not([type="checkbox"]),
+.item-form select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  min-width: 10rem;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background: #1a1a1a;
+  color: #fff;
+  cursor: pointer;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid #eee;
+}
+
+td button {
+  margin-right: 0.4rem;
+  background: #eee;
+  color: #1a1a1a;
+}
+
+.thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+
+.drag-handle {
+  width: 1.5rem;
+  text-align: center;
+  color: #999;
+  cursor: grab;
+  user-select: none;
+}
+
+.draggable-row {
+  /* explicit background - the browser's native drag-ghost snapshot only
+     rasterizes this row's own painted background, not the inherited one
+     from <table>, so without this the dragged row preview looks transparent */
+  background: #fff;
+}
+
+.draggable-row.dragging {
+  opacity: 0.4;
+}
+
+.draggable-row.drag-over {
+  box-shadow: inset 0 2px 0 0 #1a1a1a;
+}
+
+.item-form textarea {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  min-width: 16rem;
+  font-family: inherit;
+}
+
+.image-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.image-preview {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #e2e2e2;
+}
+
+.cropper-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.crop-canvas {
+  width: 320px;
+  height: 320px;
+  cursor: grab;
+  border-radius: 6px;
+  border: 1px solid #d0d0d0;
+  background: #eee;
+  touch-action: none;
+}
+
+.crop-canvas:active {
+  cursor: grabbing;
+}
+
+.cropper-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.cropper-actions button[type="button"]:last-child {
+  background: #eee;
+  color: #1a1a1a;
+}
+
+.field-error {
+  color: #b00020;
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.coaches-field-group {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  color: #555;
+  gap: 0.25rem;
+  max-width: 16rem;
+}
+
+/* higher specificity than ".item-form label" (which sets flex-direction:
+   column) so a checkbox + text label stays a row even nested in a form */
+.item-form .checkbox-label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: #1a1a1a;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: auto;
+}
+
+.players-panel:empty {
+  display: none;
+}
+
+.players-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 1.5rem 0 0.75rem;
+}
+
+.players-header h2 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.players-header button {
+  background: #eee;
+  color: #1a1a1a;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.calendar-header h2 {
+  font-size: 1.2rem;
+  margin: 0;
+  min-width: 12rem;
+  text-align: center;
+}
+
+.calendar-header button {
+  background: #eee;
+  color: #1a1a1a;
+  padding: 0.4rem 0.8rem;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: #e2e2e2;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.calendar-dow {
+  background: #fff;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  text-align: center;
+}
+
+.calendar-cell {
+  background: #fff;
+  min-height: 6rem;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.calendar-cell-empty {
+  background: #fafafa;
+}
+
+.calendar-day-number {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.calendar-event {
+  font-size: 0.75rem;
+  background: #eef2ff;
+  color: #1a1a1a;
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.calendar-event:hover {
+  background: #dde4ff;
+}

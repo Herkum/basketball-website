@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Signing in…</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="centered">
+    <p id="status">Signing in…</p>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const error = params.get("error");
+      const statusEl = document.getElementById("status");
+
+      if (error) {
+        statusEl.textContent = `Login failed: ${params.get("error_description") || error}`;
+        return;
+      }
+
+      if (!code) {
+        statusEl.textContent = "Missing authorization code.";
+        return;
+      }
+
+      try {
+        await exchangeCodeForTokens(code);
+        window.location.href = "index.html";
+      } catch (err) {
+        statusEl.textContent = `Login failed: ${err.message}`;
+      }
+    })();
+  </script>
+</body>
+</html>
