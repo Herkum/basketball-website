@@ -27,6 +27,25 @@ function isLoggedIn() {
   return !!getIdToken() && Date.now() < expiresAt;
 }
 
+let sessionTimeoutId = null;
+
+// The dashboard is a single page that's never reloaded during normal use, so
+// isLoggedIn()'s Date.now() check alone would only catch an expired session
+// the next time something happens to re-check it (a submit, a tab switch).
+// This schedules an actual timer for the token's expiry so the session ends
+// itself -- back to the login screen -- the moment it expires, with no user
+// action required.
+function scheduleSessionTimeout() {
+  if (sessionTimeoutId) clearTimeout(sessionTimeoutId);
+  const expiresAt = Number(sessionStorage.getItem("expires_at") || 0);
+  const remaining = expiresAt - Date.now();
+  if (remaining <= 0) {
+    logout();
+    return;
+  }
+  sessionTimeoutId = setTimeout(logout, remaining);
+}
+
 async function startLogin() {
   const verifier = generateCodeVerifier();
   const challenge = await sha256Base64Url(verifier);
@@ -71,6 +90,7 @@ async function exchangeCodeForTokens(code) {
 }
 
 function logout() {
+  if (sessionTimeoutId) clearTimeout(sessionTimeoutId);
   sessionStorage.clear();
   const params = new URLSearchParams({
     client_id: window.APP_CONFIG.clientId,

@@ -35,6 +35,29 @@ locals {
       table_arn  = aws_dynamodb_table.contacts.arn
       table_name = aws_dynamodb_table.contacts.name
     }
+    sponsors = {
+      dir        = "sponsors"
+      table_arn  = aws_dynamodb_table.sponsors.arn
+      table_name = aws_dynamodb_table.sponsors.name
+    }
+    albums = {
+      dir        = "albums"
+      table_arn  = aws_dynamodb_table.albums.arn
+      table_name = aws_dynamodb_table.albums.name
+    }
+    photos = {
+      dir        = "photos"
+      table_arn  = aws_dynamodb_table.photos.arn
+      table_name = aws_dynamodb_table.photos.name
+    }
+    standings = {
+      dir        = "standings"
+      table_arn  = aws_dynamodb_table.standings.arn
+      table_name = aws_dynamodb_table.standings.name
+      # scrapes an external page (MaxPreps) - needs more than the default
+      # 10s other resources' simple DynamoDB CRUD calls get.
+      timeout = 20
+    }
   }
 }
 
@@ -90,7 +113,7 @@ resource "aws_lambda_function" "function" {
   runtime          = "python3.12"
   filename         = data.archive_file.function_zip[each.key].output_path
   source_code_hash = data.archive_file.function_zip[each.key].output_base64sha256
-  timeout          = 10
+  timeout          = lookup(each.value, "timeout", 10)
 
   environment {
     variables = {

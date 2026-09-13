@@ -63,6 +63,17 @@ resource "aws_cognito_user_pool_client" "admin_spa" {
   allowed_oauth_flows_user_pool_client = true
   allowed_oauth_scopes                = ["openid", "email", "profile"]
 
+  # Admin session length: the SPA (auth.js) only ever stores the id_token and
+  # uses its expires_in to know when to bounce back to the Hosted UI -- there's
+  # no refresh-token flow, so this is the actual "how long am I logged in for"
+  # knob. Bumped from Cognito's 60-minute default to 2 hours.
+  id_token_validity     = 2
+  access_token_validity = 2
+  token_validity_units {
+    id_token     = "hours"
+    access_token = "hours"
+  }
+
   supported_identity_providers = local.google_idp_enabled ? ["Google"] : ["COGNITO"]
 
   callback_urls = [

@@ -10,3 +10,5 @@ __pycache__/
 .venv/
 frontend/admin/config.js
 frontend/config.js
+/designer/
+/admin-screens-bundle.zip

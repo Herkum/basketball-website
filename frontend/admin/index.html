@@ -9,26 +9,28 @@
 <body>
   <div id="login-screen" class="centered" hidden>
     <h1>Admin Login</h1>
-    <button id="login-button">Login with Google</button>
+    <button class="btn btn-primary" id="login-button">Login with Google</button>
   </div>
 
   <div id="dashboard" hidden>
-    <header>
-      <h1>Basketball Website Admin</h1>
-      <button id="logout-button">Log out</button>
+    <header class="ad-header">
+      <div class="ad-header-inner">
+        <div class="ad-brand">
+          <span class="ad-brand-name">Newbury Park Basketball</span>
+          <span class="ad-brand-tag">Site Admin</span>
+        </div>
+        <button class="btn btn-ghost" id="logout-button" type="button">Log out</button>
+      </div>
     </header>
 
-    <nav class="tabs">
-      <button data-tab="content-blocks" class="active">Content Blocks</button>
-      <button data-tab="news">News</button>
-      <button data-tab="rosters">Rosters</button>
-      <button data-tab="schedule">Schedule</button>
-      <button data-tab="coaches">Coaches</button>
-      <button data-tab="contacts">Contacts</button>
+    <nav class="ad-nav">
+      <div class="ad-nav-inner" id="ad-nav-groups"></div>
     </nav>
 
     <main id="section-container"></main>
   </div>
+
+  <div id="ad-overlay-root"></div>
 
   <script src="config.js"></script>
   <script src="auth.js"></script>
@@ -36,6 +38,7 @@
   <script>
     if (isLoggedIn()) {
       document.getElementById("dashboard").hidden = false;
+      scheduleSessionTimeout();
       initDashboard();
     } else {
       document.getElementById("login-screen").hidden = false;

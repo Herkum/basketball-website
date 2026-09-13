@@ -67,6 +67,21 @@ locals {
       path         = "/contacts/{contact_id}"
       list_path    = "/contacts"
     }
+    sponsors = {
+      function_key = "sponsors"
+      path         = "/sponsors/{sponsor_id}"
+      list_path    = "/sponsors"
+    }
+    albums = {
+      function_key = "albums"
+      path         = "/albums/{album_id}"
+      list_path    = "/albums"
+    }
+    photos = {
+      function_key = "photos"
+      path         = "/photos/{album_id}/{photo_id}"
+      list_path    = "/photos/{album_id}"
+    }
   }
 }
 
@@ -159,6 +174,54 @@ resource "aws_apigatewayv2_route" "uploads" {
   route_key = "POST /uploads"
 
   target             = "integrations/${aws_apigatewayv2_integration.uploads.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+# Standings is a singleton cache (GET the cached scrape, POST to trigger a
+# fresh scrape) rather than a keyed list, so it doesn't fit the generic
+# item/list route shape every other resource uses - bespoke here, same
+# pattern as uploads above, reusing the standings Lambda from the generic
+# `local.functions` map.
+resource "aws_apigatewayv2_integration" "standings" {
+  api_id                 = aws_apigatewayv2_api.admin.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.function["standings"].invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_lambda_permission" "allow_apigw_invoke_standings" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.function["standings"].function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.admin.execution_arn}/*/*"
+}
+
+resource "aws_apigatewayv2_route" "standings_get" {
+  api_id    = aws_apigatewayv2_api.admin.id
+  route_key = "GET /standings"
+
+  target             = "integrations/${aws_apigatewayv2_integration.standings.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "standings_post" {
+  api_id    = aws_apigatewayv2_api.admin.id
+  route_key = "POST /standings"
+
+  target             = "integrations/${aws_apigatewayv2_integration.standings.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+# PUT persists manually-edited rows (e.g. fixing a scrape error) without
+# scraping, distinct from POST which triggers a fresh scrape.
+resource "aws_apigatewayv2_route" "standings_put" {
+  api_id    = aws_apigatewayv2_api.admin.id
+  route_key = "PUT /standings"
+
+  target             = "integrations/${aws_apigatewayv2_integration.standings.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }

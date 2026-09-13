@@ -22,6 +22,15 @@ function isoDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
+// Ordinary News only shows within its published_date..end_date window.
+// Events are upcoming items meant to be visible as soon as they're
+// announced (their Published date can be today, unlike News), so they
+// skip the published_date gate entirely and stay visible until end_date.
+function isNewsActive(n, today) {
+  if (n.is_event) return !n.end_date || n.end_date >= today;
+  return Boolean(n.published_date) && n.published_date <= today && (!n.end_date || n.end_date >= today);
+}
+
 // A few Content Blocks (Home / Mission Statement / Sponsors) are plain text
 // sections with no dedicated page or Generator - look those up by title.
 function findBlock(blocks, title) {
@@ -41,15 +50,40 @@ const GENERATOR_PAGES = {
   Schedule: "schedule.html",
   News: "news.html",
   "Contact Us": "contact.html",
+  Sponsors: "sponsors.html",
+  Photos: "photos.html",
+  Standings: "standings.html",
+  "Mission Statement": "mission.html",
 };
 
 function pageForGenerator(generator) {
   return GENERATOR_PAGES[generator] || "index.html";
 }
 
-// Builds the sidebar (one link per non-NoIndex Content Block, in `order`)
-// and fills the header bar from the NoIndex "Header" block's body. Returns
-// the fetched blocks so callers can look up their own page's block.
+// Standings rows store records as "W-L" strings (from the MaxPreps
+// scrape) - parse one back into numbers for sorting/comparison.
+function parseRecord(str) {
+  const [wins, losses] = (str || "0-0").split("-").map(Number);
+  return { wins: wins || 0, losses: losses || 0 };
+}
+
+// Best league record first, then best overall record as a tiebreaker -
+// used instead of the scraped `rank` field, which this site doesn't show.
+function compareStandingsRows(a, b) {
+  const aLeague = parseRecord(a.league_record);
+  const bLeague = parseRecord(b.league_record);
+  if (aLeague.wins !== bLeague.wins) return bLeague.wins - aLeague.wins;
+  if (aLeague.losses !== bLeague.losses) return aLeague.losses - bLeague.losses;
+  const aOverall = parseRecord(a.overall_record);
+  const bOverall = parseRecord(b.overall_record);
+  if (aOverall.wins !== bOverall.wins) return bOverall.wins - aOverall.wins;
+  return aOverall.losses - bOverall.losses;
+}
+
+// Builds the sidebar (brand block, W-L record box, one nav link per
+// non-NoIndex Content Block in `order`, and an address/league footer) and
+// fills the header bar from the "Header" block's body. Returns the fetched
+// blocks so callers can look up their own page's block.
 async function initLayout() {
   const currentFile = window.location.pathname.split("/").pop() || "index.html";
   const currentTeamId = new URLSearchParams(window.location.search).get("team");
@@ -60,9 +94,17 @@ async function initLayout() {
   } catch (err) {
     // fall back to an empty sidebar/header below
   }
-  const teams = await siteFetch("/rosters").catch(() => []);
+  const [teams, contacts, standingsCache] = await Promise.all([
+    siteFetch("/rosters").catch(() => []),
+    siteFetch("/contacts").catch(() => []),
+    siteFetch("/standings").catch(() => null),
+  ]);
 
-  const headerBlock = blocks.find((b) => b.special);
+  // Header and Logo are both NoIndex (excluded from the nav below), so
+  // Header can no longer be found by "the special block" alone - look it
+  // up by its fixed title, same as Home/Mission Statement.
+  const headerBlock = findBlock(blocks, "Header");
+  const logoBlock = findBlockByGenerator(blocks, "Logo");
   const siteName = headerBlock?.body || "Basketball";
 
   const header = document.getElementById("site-header");
@@ -71,6 +113,53 @@ async function initLayout() {
       el("a", { href: "index.html", class: "site-title", text: siteName }),
     ])
   );
+
+  const sidebar = document.getElementById("site-sidebar");
+
+  if (logoBlock) {
+    sidebar.appendChild(
+      el("a", { href: "index.html", class: "brand-block" }, [
+        logoBlock.image
+          ? el("img", { class: "brand-logo", src: logoBlock.image, alt: logoBlock.title || "" })
+          : el("div", {
+              class: "brand-logo brand-logo-fallback",
+              text: (logoBlock.title || "")
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase(),
+            }),
+        el("div", {}, [
+          el("div", { class: "brand-name", text: logoBlock.title || "" }),
+          logoBlock.body ? el("div", { class: "brand-tagline", text: logoBlock.body }) : null,
+        ].filter(Boolean)),
+      ])
+    );
+  }
+
+  // The sidebar's record box reads directly off our own row in the
+  // scraped Standings cache (matched by school name against the Logo
+  // block's title) rather than computing it from Schedule - Standings is
+  // already the authoritative source for W-L records site-wide.
+  const ourStandingsRow = logoBlock
+    ? (standingsCache?.rows || []).find((r) => (r.school || "").toLowerCase() === (logoBlock.title || "").toLowerCase())
+    : null;
+  if (ourStandingsRow) {
+    sidebar.appendChild(
+      el("div", { class: "record-box" }, [
+        el("div", { class: "record-col" }, [
+          el("div", { class: "record-value nums", text: ourStandingsRow.overall_record || "" }),
+          el("div", { class: "eyebrow", text: "Overall" }),
+        ]),
+        el("div", { class: "record-col" }, [
+          el("div", { class: "record-value nums", text: ourStandingsRow.league_record || "" }),
+          el("div", { class: "eyebrow", text: "League" }),
+        ]),
+      ])
+    );
+  }
 
   const navLinks = blocks
     .filter((b) => !b.special)
@@ -107,8 +196,21 @@ async function initLayout() {
     }
   }
 
-  const sidebar = document.getElementById("site-sidebar");
   sidebar.appendChild(el("nav", { class: "site-nav" }, navItems));
+
+  const addressContact = contacts.find((c) => c.type === "Physical Address");
+  if (addressContact || logoBlock?.league_name) {
+    sidebar.appendChild(
+      el(
+        "div",
+        { class: "sidebar-footer" },
+        [
+          addressContact ? el("div", { text: addressContact.value || "" }) : null,
+          logoBlock?.league_name ? el("div", { text: logoBlock.league_name }) : null,
+        ].filter(Boolean)
+      )
+    );
+  }
 
   return blocks;
 }
@@ -118,62 +220,186 @@ function setPageTitle(title) {
   if (heading) heading.textContent = title || "";
 }
 
+function sectionDivider(title, children) {
+  return el("div", { class: "section-divider" }, [
+    el("div", { class: "section-heading" }, [el("h2", { text: title })]),
+    ...children,
+  ]);
+}
+
 async function initHomePage() {
   const blocks = await initLayout();
-  setPageTitle("Welcome");
-  const main = document.getElementById("page-content");
-
-  const [rosters, news] = await Promise.all([siteFetch("/rosters"), siteFetch("/news")]);
-
   const homeBlock = findBlock(blocks, "Home");
-  const mission = findBlock(blocks, "Mission Statement");
-  const sponsors = findBlock(blocks, "Sponsors");
+  const logoBlock = findBlockByGenerator(blocks, "Logo");
+  setPageTitle(homeBlock?.title || "Welcome");
+  const main = document.getElementById("page-content");
+  main.appendChild(el("span", { class: "eyebrow", text: `${defaultSeason()} Season` }));
 
-  if (homeBlock?.body) main.appendChild(el("p", { class: "page-intro", text: homeBlock.body }));
-  if (mission?.body) {
-    main.appendChild(el("h2", { text: "Mission Statement" }));
-    main.appendChild(el("p", { text: mission.body }));
-  }
-  if (sponsors?.body) {
-    main.appendChild(el("h2", { text: "Sponsors" }));
-    main.appendChild(el("p", { text: sponsors.body }));
-  }
+  const [rosters, news, sponsors, standings, contacts] = await Promise.all([
+    siteFetch("/rosters"),
+    siteFetch("/news"),
+    siteFetch("/sponsors").catch(() => []),
+    siteFetch("/standings").catch(() => null),
+    siteFetch("/contacts").catch(() => []),
+  ]);
 
   const today = isoDate(new Date());
-  const activeNews = news
-    .filter((n) => n.published_date && n.published_date <= today && (!n.end_date || n.end_date >= today))
-    .sort((a, b) => (b.published_date || "").localeCompare(a.published_date || ""));
-
   const allGames = await siteFetch(`/schedule/${defaultSeason()}`).catch(() => []);
-  const upcoming = allGames
-    .filter((g) => g.date && g.date >= today)
-    .sort((a, b) => a.date.localeCompare(b.date))[0];
   const teamsById = Object.fromEntries(rosters.map((t) => [t.team_id, t]));
+  const sortedGames = [...allGames].filter((g) => g.date).sort((a, b) => a.date.localeCompare(b.date));
+  const played = sortedGames.filter((g) => g.date < today && g.our_score && g.opponent_score);
+  const lastResult = played[played.length - 1];
+  const upcomingGames = sortedGames.filter((g) => g.date >= today);
+  const nextGame = upcomingGames[0];
+  const thenGames = upcomingGames.slice(1, 4);
+  const gymContact = contacts.find((c) => c.type === "Physical Address");
 
-  const teaserGrid = el("div", { class: "teaser-grid" });
-  if (upcoming) {
-    teaserGrid.appendChild(
-      el("div", { class: "teaser-card" }, [
-        el("h3", { text: "Next Game" }),
-        el("p", {
-          text: `${upcoming.date}${upcoming.time ? " · " + upcoming.time : ""} — ${
-            upcoming.home_away === "Home" ? "vs" : "at"
-          } ${upcoming.opponent || ""}${teamsById[upcoming.team_id] ? " (" + teamsById[upcoming.team_id].name + ")" : ""}`,
+  function gameLine(g) {
+    const teamName = teamsById[g.team_id]?.name;
+    return `${g.home_away === "Home" ? "vs" : "at"} ${g.opponent || ""}${teamName ? " (" + teamName + ")" : ""}`;
+  }
+
+  const statRow = el("div", { class: "stat-row" });
+  if (lastResult) {
+    const won = Number(lastResult.our_score) > Number(lastResult.opponent_score);
+    statRow.appendChild(
+      el("div", { class: "stat-col" }, [
+        el("span", { class: "eyebrow", text: "Last Result" }),
+        el("div", {
+          class: `stat-value nums ${won ? "result-win" : "result-loss"}`,
+          text: `${lastResult.our_score} – ${lastResult.opponent_score}`,
         }),
+        el("p", { class: "stat-meta", text: `${gameLine(lastResult)} · ${lastResult.date}` }),
+      ])
+    );
+  }
+  if (nextGame) {
+    const venueLabel =
+      nextGame.home_away === "Home"
+        ? `Home${gymContact?.label ? " · " + gymContact.label : ""}`
+        : `At ${nextGame.location || nextGame.opponent || ""}`;
+    statRow.appendChild(
+      el("div", { class: "stat-col" }, [
+        el("span", { class: "eyebrow", text: "Next Game" }),
+        el("div", { class: "stat-value", text: nextGame.opponent || "" }),
+        el("p", { class: "stat-meta nums", text: `${nextGame.date}${nextGame.time ? " · " + nextGame.time : ""}` }),
+        el("p", { class: "stat-meta", text: venueLabel }),
+      ])
+    );
+  }
+  if (thenGames.length) {
+    statRow.appendChild(
+      el("div", { class: "stat-col" }, [
+        el("span", { class: "eyebrow", text: "Then" }),
+        ...thenGames.map((g) =>
+          el("div", { class: "stat-list-row" }, [el("span", { text: gameLine(g) }), el("span", { class: "nums", text: g.date })])
+        ),
         el("a", { href: "schedule.html", text: "Full schedule →" }),
       ])
     );
   }
-  if (activeNews[0]) {
-    teaserGrid.appendChild(
-      el("div", { class: "teaser-card" }, [
-        el("h3", { text: "Latest News" }),
-        el("p", { text: activeNews[0].title || "" }),
-        el("a", { href: "news.html", text: "Read more →" }),
+  if (statRow.children.length) main.appendChild(statRow);
+
+  // Per request: the Home content block's text sits between the stat row
+  // and the standings teaser, not at the very top of the page.
+  if (homeBlock?.body) main.appendChild(el("p", { class: "page-intro", text: homeBlock.body }));
+
+  const standingsRows = [...(standings?.rows || [])].sort(compareStandingsRows);
+  if (standingsRows.length) {
+    const tbody = el("tbody");
+    for (const row of standingsRows) {
+      const isUs = logoBlock && (row.school || "").toLowerCase() === (logoBlock.title || "").toLowerCase();
+      const [wins, losses] = (row.league_record || "-").split("-");
+      tbody.appendChild(
+        el("tr", isUs ? { class: "standings-row-us" } : {}, [
+          el("td", { text: row.school || "" }),
+          el("td", { class: "nums", text: wins || "" }),
+          el("td", { class: "nums", text: losses || "" }),
+          el("td", { class: "nums", text: row.league_pf || "" }),
+          el("td", { class: "nums", text: row.league_pa || "" }),
+          el("td", { class: "nums", text: row.streak || "" }),
+        ])
+      );
+    }
+    main.appendChild(
+      el("div", { class: "section-divider" }, [
+        el("div", { class: "section-heading" }, [
+          el("h2", { text: logoBlock?.league_name || "League Standings" }),
+          el("span", { class: "eyebrow", text: "Varsity Standings" }),
+        ]),
+        el("a", { href: "standings.html", text: "Full standings →" }),
+        el("table", { style: "margin-top:0.75rem" }, [
+          el("thead", {}, [el("tr", {}, ["School", "W", "L", "PF", "PA", "Streak"].map((t) => el("th", { text: t })))]),
+          tbody,
+        ]),
       ])
     );
   }
-  if (teaserGrid.children.length) main.appendChild(teaserGrid);
+
+  if (sponsors.length) {
+    main.appendChild(
+      sectionDivider("Sponsors", [el("p", { text: sponsors.map((s) => s.name).filter(Boolean).join(" · ") })])
+    );
+  }
+
+  // Events (nearest date first) lead over plain news (newest first) -
+  // combined into one feed, the first item becomes the lead article
+  // (matches the demo's Home news section: a lead story with a photo
+  // beside the text, then a grid of smaller cards for the rest).
+  const activeEvents = news
+    .filter((n) => n.is_event && isNewsActive(n, today))
+    .sort((a, b) => (a.published_date || "").localeCompare(b.published_date || ""));
+  const activeArticles = news
+    .filter((n) => !n.is_event && isNewsActive(n, today))
+    .sort((a, b) => (b.published_date || "").localeCompare(a.published_date || ""));
+  const feed = [...activeEvents, ...activeArticles];
+  const [lead, ...rest] = feed;
+
+  function newsEyebrow(n) {
+    return n.is_event ? `Event · ${n.published_date || ""}` : n.published_date || "";
+  }
+
+  if (lead) {
+    main.appendChild(
+      el("div", { class: "section-divider" }, [
+        el("div", { class: "section-heading" }, [el("h2", { text: "News" }), el("a", { href: "news.html", text: "Read more →" })]),
+        el(
+          "article",
+          { class: "news-lead" },
+          [
+            el("div", {}, [
+              el("span", { class: "eyebrow", text: newsEyebrow(lead) }),
+              el("h3", { text: lead.title || "" }),
+              el("p", { text: lead.body || "" }),
+              el("a", { href: "news.html", text: "Read the recap →" }),
+            ]),
+            lead.image ? el("img", { class: "plate news-lead-photo", src: lead.image, alt: "" }) : null,
+          ].filter(Boolean)
+        ),
+        rest.length
+          ? el(
+              "div",
+              { class: "news-grid" },
+              rest.slice(0, 3).map((n) =>
+                el("div", {}, [
+                  el("span", { class: "eyebrow", text: newsEyebrow(n) }),
+                  el("h4", { text: n.title || "" }),
+                  el("p", { class: "card-subtitle", text: n.body || "" }),
+                ])
+              )
+            )
+          : null,
+      ].filter(Boolean))
+    );
+  }
+}
+
+async function initMissionPage() {
+  const blocks = await initLayout();
+  const intro = findBlockByGenerator(blocks, "Mission Statement");
+  setPageTitle(intro?.title || "Mission Statement");
+  const main = document.getElementById("page-content");
+  if (intro?.body) main.appendChild(el("p", { text: intro.body }));
 }
 
 function defaultSeason() {
@@ -198,7 +424,7 @@ async function initRostersPage() {
   const grid = el("div", { class: "card-grid" });
   for (const team of teams) {
     const card = el("a", { href: `roster.html?team=${encodeURIComponent(team.team_id)}`, class: "card" }, [
-      el("img", { class: "card-photo", src: team.image || "", alt: team.name || "" }),
+      el("img", { class: "card-photo plate", src: team.image || "", alt: team.name || "" }),
       el("div", { class: "card-body" }, [el("p", { class: "card-title", text: team.name || "" })]),
     ]);
     grid.appendChild(card);
@@ -228,8 +454,12 @@ async function initRosterDetailPage() {
   document.title = team.name ? `${team.name} Roster` : "Roster";
   setPageTitle(team.name || "Roster");
 
-  if (team.image) main.appendChild(el("img", { class: "card-photo", src: team.image, alt: team.name || "" }));
-  if (coachNames) main.appendChild(el("p", { class: "card-subtitle", text: `Coaches: ${coachNames}` }));
+  if (team.image) main.appendChild(el("img", { class: "card-photo plate", src: team.image, alt: team.name || "" }));
+  if (coachNames) {
+    main.appendChild(el("span", { class: "eyebrow", text: "Coaching Staff" }));
+    main.appendChild(el("p", { class: "card-subtitle", text: coachNames }));
+  }
+  if (team.description) main.appendChild(el("p", { text: team.description }));
 
   if (!players.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No players listed yet." }));
@@ -245,23 +475,25 @@ async function initRosterDetailPage() {
         photoCell,
         el("td", { text: p.first_name || "" }),
         el("td", { text: p.last_name || "" }),
-        el("td", { text: p.number || "" }),
-        el("td", { text: p.height || "" }),
+        el("td", { class: "nums", text: p.number || "" }),
+        el("td", { class: "nums", text: p.height || "" }),
         el("td", { text: p.year || "" }),
       ])
     );
   }
 
   main.appendChild(
-    el("table", {}, [
-      el("thead", {}, [
-        el(
-          "tr",
-          {},
-          ["", "First name", "Last name", "#", "Height", "Year"].map((t) => el("th", { text: t }))
-        ),
+    sectionDivider("Players", [
+      el("table", {}, [
+        el("thead", {}, [
+          el(
+            "tr",
+            {},
+            ["", "First name", "Last name", "#", "Height", "Year"].map((t) => el("th", { text: t }))
+          ),
+        ]),
+        tbody,
       ]),
-      tbody,
     ])
   );
 }
@@ -282,9 +514,28 @@ async function initSchedulePage() {
   const sorted = [...games].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
 
   const filterRow = el("div", { class: "filter-row" });
+  const viewToggleRow = el("div", { class: "filter-row" });
   const tableContainer = el("div");
+  const calendarContainer = el("div");
   main.appendChild(filterRow);
+  main.appendChild(viewToggleRow);
   main.appendChild(tableContainer);
+  main.appendChild(calendarContainer);
+
+  let currentTeamId = null;
+  let view = "list";
+  let viewYear = null;
+  let viewMonth = null;
+
+  const MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+
+  function monthLabel(dateStr) {
+    const [y, m] = (dateStr || "").split("-").map(Number);
+    return y && m ? `${MONTH_NAMES[m - 1]} ${y}` : "";
+  }
 
   function renderTable(filterTeamId) {
     tableContainer.innerHTML = "";
@@ -295,49 +546,171 @@ async function initSchedulePage() {
       return;
     }
 
-    const tbody = el("tbody");
+    const groups = [];
     for (const g of filtered) {
-      const addressCell = el("td");
-      if (g.address) addressCell.appendChild(el("a", { href: mapsUrl(g.address), target: "_blank", class: "maps-link", text: "Map" }));
+      const key = (g.date || "").slice(0, 7);
+      if (!groups.length || groups[groups.length - 1].key !== key) {
+        groups.push({ key, label: monthLabel(g.date), games: [] });
+      }
+      groups[groups.length - 1].games.push(g);
+    }
 
-      tbody.appendChild(
-        el("tr", {}, [
-          el("td", { text: g.date || "" }),
-          el("td", { text: g.time || "" }),
-          el("td", { text: teamsById[g.team_id]?.name || "" }),
-          el("td", { text: g.home_away === "Home" ? "vs" : "at" }),
-          el("td", { text: g.opponent || "" }),
-          addressCell,
-          el(
-            "td",
-            {
-              text:
-                g.our_score || g.opponent_score
-                  ? `${g.our_score || "-"} : ${g.opponent_score || "-"}`
-                  : "",
-            }
-          ),
+    for (const group of groups) {
+      const tbody = el("tbody");
+      for (const g of group.games) {
+        const addressCell = el("td");
+        if (g.address) {
+          addressCell.appendChild(
+            el("a", { href: mapsUrl(g.address), target: "_blank", class: "maps-link", text: g.location || "Map" })
+          );
+        } else if (g.location) {
+          addressCell.appendChild(el("span", { text: g.location }));
+        }
+
+        let scoreCell;
+        if (g.our_score || g.opponent_score) {
+          const won = Number(g.our_score) > Number(g.opponent_score);
+          scoreCell = el("td", {
+            class: `nums ${won ? "result-win" : "result-loss"}`,
+            text: `${g.our_score || "-"} : ${g.opponent_score || "-"}`,
+          });
+        } else {
+          scoreCell = el("td", {});
+        }
+
+        tbody.appendChild(
+          el("tr", {}, [
+            el("td", { class: "nums", text: g.date || "" }),
+            el("td", { class: "nums", text: g.time || "" }),
+            el("td", { text: teamsById[g.team_id]?.name || "" }),
+            el("td", { text: g.home_away === "Home" ? "vs" : "at" }),
+            el("td", { text: g.opponent || "" }),
+            addressCell,
+            scoreCell,
+          ])
+        );
+      }
+
+      const count = group.games.length;
+      tableContainer.appendChild(
+        sectionDivider(`${group.label} · ${count} game${count === 1 ? "" : "s"}`, [
+          el("table", {}, [
+            el(
+              "thead",
+              {},
+              [el("tr", {}, ["Date", "Time", "Team", "", "Opponent", "Location", "Score"].map((t) => el("th", { text: t })))]
+            ),
+            tbody,
+          ]),
         ])
       );
     }
-
-    tableContainer.appendChild(
-      el("table", {}, [
-        el(
-          "thead",
-          {},
-          [el("tr", {}, ["Date", "Time", "Team", "", "Opponent", "Location", "Score"].map((t) => el("th", { text: t })))]
-        ),
-        tbody,
-      ])
-    );
   }
+
+  function buildCalendar(filterTeamId) {
+    calendarContainer.innerHTML = "";
+    const filtered = filterTeamId ? sorted.filter((g) => g.team_id === filterTeamId) : sorted;
+
+    if (viewYear === null) {
+      const earliestDate = filtered.reduce((min, g) => (g.date && (!min || g.date < min) ? g.date : min), null);
+      const [y, m] = (earliestDate || isoDate(new Date())).split("-").map(Number);
+      viewYear = y;
+      viewMonth = m - 1;
+    }
+
+    const gamesByDate = {};
+    for (const g of filtered) {
+      if (g.date) (gamesByDate[g.date] ||= []).push(g);
+    }
+
+    const label = new Date(viewYear, viewMonth, 1).toLocaleString(undefined, { month: "long", year: "numeric" });
+    const prevBtn = el("button", { type: "button", text: "◀" }).also((btn) =>
+      btn.addEventListener("click", () => {
+        viewMonth -= 1;
+        if (viewMonth < 0) {
+          viewMonth = 11;
+          viewYear -= 1;
+        }
+        buildCalendar(currentTeamId);
+      })
+    );
+    const nextBtn = el("button", { type: "button", text: "▶" }).also((btn) =>
+      btn.addEventListener("click", () => {
+        viewMonth += 1;
+        if (viewMonth > 11) {
+          viewMonth = 0;
+          viewYear += 1;
+        }
+        buildCalendar(currentTeamId);
+      })
+    );
+
+    const grid = el("div", { class: "calendar-grid" });
+    for (const dow of ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]) {
+      grid.appendChild(el("div", { class: "calendar-dow", text: dow }));
+    }
+
+    const firstOfMonth = new Date(viewYear, viewMonth, 1);
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    for (let i = 0; i < firstOfMonth.getDay(); i++) {
+      grid.appendChild(el("div", { class: "calendar-cell calendar-cell-empty" }));
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const iso = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const cell = el("div", { class: "calendar-cell" }, [el("div", { class: "calendar-day-number", text: String(day) })]);
+
+      for (const g of gamesByDate[iso] || []) {
+        const teamName = teamsById[g.team_id]?.name;
+        const label = [g.time, g.home_away === "Home" ? "vs" : "at", g.opponent, teamName && `(${teamName})`]
+          .filter(Boolean)
+          .join(" ");
+        cell.appendChild(el("div", { class: "calendar-event", text: label }));
+      }
+      grid.appendChild(cell);
+    }
+
+    calendarContainer.appendChild(el("div", { class: "calendar-header" }, [prevBtn, el("h2", { text: label }), nextBtn]));
+    calendarContainer.appendChild(grid);
+  }
+
+  function renderView() {
+    if (view === "list") {
+      tableContainer.hidden = false;
+      calendarContainer.hidden = true;
+      renderTable(currentTeamId);
+    } else {
+      tableContainer.hidden = true;
+      calendarContainer.hidden = false;
+      buildCalendar(currentTeamId);
+    }
+  }
+
+  const listBtn = el("button", { type: "button", text: "List", class: "active" }).also((btn) =>
+    btn.addEventListener("click", () => {
+      view = "list";
+      viewToggleRow.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderView();
+    })
+  );
+  const calendarBtn = el("button", { type: "button", text: "Calendar" }).also((btn) =>
+    btn.addEventListener("click", () => {
+      view = "calendar";
+      viewToggleRow.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      renderView();
+    })
+  );
+  viewToggleRow.appendChild(listBtn);
+  viewToggleRow.appendChild(calendarBtn);
 
   const allBtn = el("button", { type: "button", text: "All", class: "active" }).also((btn) =>
     btn.addEventListener("click", () => {
       filterRow.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-      renderTable(null);
+      currentTeamId = null;
+      renderView();
     })
   );
   filterRow.appendChild(allBtn);
@@ -347,13 +720,14 @@ async function initSchedulePage() {
       b.addEventListener("click", () => {
         filterRow.querySelectorAll("button").forEach((x) => x.classList.remove("active"));
         b.classList.add("active");
-        renderTable(team.team_id);
+        currentTeamId = team.team_id;
+        renderView();
       })
     );
     filterRow.appendChild(btn);
   }
 
-  renderTable(null);
+  renderView();
 }
 
 Element.prototype.also = function (fn) {
@@ -370,30 +744,46 @@ async function initNewsPage() {
 
   const news = await siteFetch("/news");
   const today = isoDate(new Date());
-  const active = news
-    .filter((n) => n.published_date && n.published_date <= today && (!n.end_date || n.end_date >= today))
+  // Events read nearest-date-first (what's coming up soonest matters
+  // most); News reads newest-first (most recently announced first) - the
+  // two lists need opposite sort directions, so they're split into their
+  // own sections rather than interleaved in one list.
+  const activeEvents = news
+    .filter((n) => n.is_event && isNewsActive(n, today))
+    .sort((a, b) => (a.published_date || "").localeCompare(b.published_date || ""));
+  const activeArticles = news
+    .filter((n) => !n.is_event && isNewsActive(n, today))
     .sort((a, b) => (b.published_date || "").localeCompare(a.published_date || ""));
 
-  if (!active.length) {
+  if (!activeEvents.length && !activeArticles.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No news right now." }));
     return;
   }
 
-  for (const post of active) {
+  function renderPost(post) {
     main.appendChild(
       el(
         "article",
         { class: "news-post" },
         [
-          post.image ? el("img", { src: post.image, alt: "" }) : null,
+          post.image ? el("img", { class: "plate", src: post.image, alt: "" }) : null,
           el("div", {}, [
-            el("h2", { text: post.title || "" }),
-            el("p", { class: "news-post-date", text: post.published_date || "" }),
+            el("span", { class: "eyebrow", text: post.is_event ? `Event · ${post.published_date || ""}` : post.published_date || "" }),
+            el("h2", { text: post.title || "", style: "margin-top:0" }),
             el("p", { text: post.body || "" }),
           ]),
         ].filter(Boolean)
       )
     );
+  }
+
+  if (activeEvents.length) {
+    main.appendChild(el("div", { class: "section-divider" }, [el("div", { class: "section-heading" }, [el("h2", { text: "Upcoming Events" })])]));
+    activeEvents.forEach(renderPost);
+  }
+  if (activeArticles.length) {
+    main.appendChild(el("div", { class: "section-divider" }, [el("div", { class: "section-heading" }, [el("h2", { text: "News" })])]));
+    activeArticles.forEach(renderPost);
   }
 }
 
@@ -404,28 +794,55 @@ async function initCoachesPage() {
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
-  const coaches = await siteFetch("/coaches");
+  const [coaches, teams] = await Promise.all([siteFetch("/coaches"), siteFetch("/rosters").catch(() => [])]);
   if (!coaches.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No coaches listed yet." }));
     return;
   }
 
+  // Which team(s) a coach is on isn't stored on the coach - it's the
+  // inverse of Rosters' coach_ids many-to-many - so build that lookup
+  // here rather than adding a redundant field on Coaches.
+  const teamNamesByCoachId = {};
+  for (const team of teams) {
+    for (const coachId of team.coach_ids || []) {
+      (teamNamesByCoachId[coachId] ||= []).push(team.name);
+    }
+  }
+
   for (const coach of coaches) {
+    const teamLabel = (teamNamesByCoachId[coach.coach_id] || []).join(", ");
     main.appendChild(
       el(
         "div",
         { class: "coach-row" },
         [
-          coach.image ? el("img", { src: coach.image, alt: coach.name || "" }) : null,
+          coach.image ? el("img", { class: "plate", src: coach.image, alt: coach.name || "" }) : null,
           el("div", {}, [
-            el("h2", { text: coach.name || "" }),
+            teamLabel ? el("span", { class: "eyebrow", text: teamLabel }) : null,
+            el("h2", { text: coach.name || "", style: "margin-top:0" }),
             el("p", { class: "card-subtitle", text: coach.title || "" }),
             coach.profile ? el("p", { text: coach.profile }) : null,
-          ]),
+            coach.email ? el("a", { href: `mailto:${coach.email}`, text: coach.email }) : null,
+          ].filter(Boolean)),
         ].filter(Boolean)
       )
     );
   }
+}
+
+function contactValueNode(contact) {
+  if (contact.type === "Email") {
+    return el("a", { href: `mailto:${contact.value}`, text: contact.value || "" });
+  } else if (contact.type === "Phone") {
+    return el("a", { href: `tel:${(contact.value || "").replace(/[^+\d]/g, "")}`, text: contact.value || "" });
+  } else if (contact.type === "Physical Address") {
+    return el("a", { href: mapsUrl(contact.value || ""), target: "_blank", text: contact.value || "" });
+  } else if (contact.type === "Instagram") {
+    const handle = (contact.value || "").replace(/^@/, "");
+    return el("a", { href: `https://instagram.com/${handle}`, target: "_blank", text: contact.value || "" });
+  }
+  return el("span", { text: contact.value || "" });
 }
 
 async function initContactPage() {
@@ -441,27 +858,187 @@ async function initContactPage() {
     return;
   }
 
-  for (const contact of contacts) {
-    let valueNode;
-    if (contact.type === "Email") {
-      valueNode = el("a", { href: `mailto:${contact.value}`, text: contact.value || "" });
-    } else if (contact.type === "Physical Address") {
-      valueNode = el("a", { href: mapsUrl(contact.value || ""), target: "_blank", text: contact.value || "" });
-    } else if (contact.type === "Instagram") {
-      const handle = (contact.value || "").replace(/^@/, "");
-      valueNode = el("a", { href: `https://instagram.com/${handle}`, target: "_blank", text: contact.value || "" });
-    } else {
-      valueNode = el("span", { text: contact.value || "" });
-    }
+  const gymContact = contacts.find((c) => c.type === "Physical Address");
+  const gridContacts = contacts.filter((c) => c !== gymContact);
 
+  if (gridContacts.length) {
+    const grid = el("div", { class: "contact-grid" });
+    for (const contact of gridContacts) {
+      grid.appendChild(
+        el(
+          "div",
+          { class: "contact-card" },
+          [
+            contact.kind ? el("span", { class: "eyebrow", text: contact.kind }) : null,
+            el("h3", { text: contact.label || contact.type || "" }),
+            contact.role || contact.type
+              ? el("p", { class: "card-subtitle", text: contact.role || contact.type })
+              : null,
+            contactValueNode(contact),
+          ].filter(Boolean)
+        )
+      );
+    }
+    main.appendChild(grid);
+  }
+
+  if (gymContact) {
+    const [street, ...rest] = (gymContact.value || "").split(",").map((s) => s.trim());
+    const cityLine = rest.join(", ");
     main.appendChild(
-      el("div", { class: "contact-row" }, [
-        el("div", {}, [
-          el("h2", { text: contact.label || contact.type || "" }),
-          el("p", { class: "card-subtitle", text: contact.type || "" }),
-          valueNode,
-        ]),
+      el("div", { class: "gym-section" }, [
+        el(
+          "div",
+          {},
+          [
+            el("h2", { text: gymContact.label || "Gym" }),
+            street ? el("div", { class: "gym-address" }, [el("div", { text: street }), cityLine ? el("div", { text: cityLine }) : null].filter(Boolean)) : null,
+            gymContact.role ? el("p", { text: gymContact.role }) : null,
+            el("a", { href: mapsUrl(gymContact.value || ""), target: "_blank", class: "btn", text: "Directions" }),
+          ].filter(Boolean)
+        ),
+        el("div", { class: "gym-photo-placeholder plate" }, [el("span", { text: "Map / Photo" })]),
       ])
+    );
+  }
+}
+
+const SPONSOR_TIERS = ["Banner", "Court", "Friend of the Program"];
+
+async function initSponsorsPage() {
+  const blocks = await initLayout();
+  const intro = findBlockByGenerator(blocks, "Sponsors");
+  setPageTitle(intro?.title || "Sponsors");
+  const main = document.getElementById("page-content");
+  if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
+
+  const sponsors = await siteFetch("/sponsors");
+  if (!sponsors.length) {
+    main.appendChild(el("p", { class: "empty-state", text: "No sponsors listed yet." }));
+    return;
+  }
+
+  for (const tier of SPONSOR_TIERS) {
+    const tierSponsors = sponsors.filter((s) => s.tier === tier);
+    if (!tierSponsors.length) continue;
+
+    const grid = el("div", { class: "card-grid" });
+    for (const s of tierSponsors) {
+      grid.appendChild(
+        el("div", { class: "card" }, [
+          el("div", { class: "card-body" }, [
+            el("p", { class: "card-title", text: s.name || "" }),
+            s.kind ? el("p", { class: "card-subtitle", text: s.kind }) : null,
+            s.website ? el("a", { href: s.website, target: "_blank", text: s.website }) : null,
+          ].filter(Boolean)),
+        ])
+      );
+    }
+    main.appendChild(sectionDivider(tier, [grid]));
+  }
+}
+
+async function initPhotosPage() {
+  const blocks = await initLayout();
+  const intro = findBlockByGenerator(blocks, "Photos");
+  setPageTitle(intro?.title || "Photos");
+  const main = document.getElementById("page-content");
+  if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
+
+  const albums = await siteFetch("/albums");
+  if (!albums.length) {
+    main.appendChild(el("p", { class: "empty-state", text: "No photos yet." }));
+    return;
+  }
+
+  for (const album of albums) {
+    const photos = await siteFetch(`/photos/${encodeURIComponent(album.album_id)}`).catch(() => []);
+
+    const section = el("div", { class: "section-divider" }, [
+      el("div", { class: "section-heading" }, [
+        el("h2", { text: album.title || "" }),
+        album.date_label ? el("span", { class: "card-subtitle", text: album.date_label }) : null,
+      ].filter(Boolean)),
+    ]);
+
+    if (photos.length) {
+      const grid = el("div", { class: "card-grid" });
+      for (const photo of photos) {
+        grid.appendChild(
+          el("figure", { class: "card", style: "margin:0" }, [
+            el("img", { class: "card-photo plate", src: photo.image || "", alt: photo.caption || "" }),
+            photo.caption ? el("figcaption", { class: "card-body", text: photo.caption }) : null,
+          ].filter(Boolean))
+        );
+      }
+      section.appendChild(grid);
+    }
+    main.appendChild(section);
+  }
+}
+
+const STANDINGS_COLUMNS = [
+  ["school", "School"],
+  ["league_record", "League W-L"],
+  ["league_pct", "League PCT"],
+  ["league_pf", "League PF"],
+  ["league_pa", "League PA"],
+  ["overall_record", "Overall W-L"],
+  ["overall_pct", "Overall PCT"],
+  ["overall_pf", "Overall PF"],
+  ["overall_pa", "Overall PA"],
+  ["streak", "Streak"],
+];
+
+async function initStandingsPage() {
+  const blocks = await initLayout();
+  const intro = findBlockByGenerator(blocks, "Standings");
+  setPageTitle(intro?.title || "League Standings");
+  const main = document.getElementById("page-content");
+  if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
+
+  const cache = await siteFetch("/standings");
+
+  const rows = [...(cache?.rows || [])].sort(compareStandingsRows);
+  if (!rows.length) {
+    main.appendChild(el("p", { class: "empty-state", text: "Standings aren't available yet." }));
+    return;
+  }
+
+  const tbody = el("tbody");
+  for (const row of rows) {
+    const schoolCell = el(
+      "td",
+      {},
+      [
+        row.link
+          ? el("a", { href: row.link, target: "_blank", text: row.school || "" })
+          : el("span", { text: row.school || "" }),
+      ]
+    );
+
+    tbody.appendChild(
+      el(
+        "tr",
+        {},
+        STANDINGS_COLUMNS.map(([key]) => (key === "school" ? schoolCell : el("td", { class: "nums", text: row[key] || "" })))
+      )
+    );
+  }
+
+  main.appendChild(
+    el("table", {}, [
+      el("thead", {}, [el("tr", {}, STANDINGS_COLUMNS.map(([, label]) => el("th", { text: label })))]),
+      tbody,
+    ])
+  );
+
+  if (cache?.updated_at) {
+    main.appendChild(
+      el("p", {
+        class: "card-subtitle",
+        text: `Last updated ${new Date(cache.updated_at * 1000).toLocaleString()}`,
+      })
     );
   }
 }

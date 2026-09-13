@@ -87,6 +87,56 @@ resource "aws_dynamodb_table" "contacts" {
   }
 }
 
+resource "aws_dynamodb_table" "sponsors" {
+  name         = "${var.project_name}-Sponsors"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "sponsor_id"
+
+  attribute {
+    name = "sponsor_id"
+    type = "S"
+  }
+}
+
+resource "aws_dynamodb_table" "albums" {
+  name         = "${var.project_name}-Albums"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "album_id"
+
+  attribute {
+    name = "album_id"
+    type = "S"
+  }
+}
+
+resource "aws_dynamodb_table" "photos" {
+  name         = "${var.project_name}-Photos"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "album_id"
+  range_key    = "photo_id"
+
+  attribute {
+    name = "album_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "photo_id"
+    type = "S"
+  }
+}
+
+resource "aws_dynamodb_table" "standings" {
+  name         = "${var.project_name}-Standings"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "cache_id"
+
+  attribute {
+    name = "cache_id"
+    type = "S"
+  }
+}
+
 resource "aws_dynamodb_table" "admin_allowlist" {
   name         = "${var.project_name}-AdminAllowlist"
   billing_mode = "PAY_PER_REQUEST"
