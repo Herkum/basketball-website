@@ -78,6 +78,10 @@ body {
   line-height: 1.55;
 }
 
+div#page-content {
+  padding: 1rem;
+}
+
 a {
   color: var(--color-accent-700);
 }
@@ -167,7 +171,7 @@ a {
   width:          52px;
   height:         58px;
   flex:           0 0 auto;
-  background:     var(--color-yellow);
+  background:     var(--color-yellow-dk);
   border:         1px solid var(--color-yellow-dk);
   border-radius:  3px 3px 22px 22px;
   display:        flex;
@@ -295,14 +299,32 @@ a {
   color: var(--color-brown);
 }
 
+/* Auto left/right margins here used to make main a flex item with
+   auto cross-axis margins inside .central-column's column-flex layout -
+   per the flexbox spec, that disables stretch-to-fill and makes main
+   shrink-to-fit its own content instead. On pages with wide content
+   (e.g. Coaches, with several cards) that shrink-to-fit width happened
+   to reach the container's full width anyway, hiding the bug; on pages
+   with little content (e.g. Sponsors, with just one or two cards) main
+   shrank to a narrow, centered column instead of filling the page -
+   collapsing any CSS grid inside it to a single column and leaving the
+   text looking centered rather than left-aligned. width:100% removes
+   the shrink-to-fit ambiguity entirely - .central-column (max-width:
+   900px) is already what caps the real column width, so main doesn't
+   need its own max-width/centering on top of that. */
 main {
-  max-width: 1000px;
-  margin: 0 auto;
+  width: 100%;
+}
+
+/* Home page only (see the .home-page class on index.html's <body>) -
+   #page-title is shared markup across every page, so this can't just be
+   an #page-title rule without affecting every other page's header too. */
+body.home-page #page-title {
+  padding-left: 1rem;
 }
 
 .page-intro {
   color: var(--muted);
-  margin-top: -0.5rem;
   margin-bottom: 2rem;
   max-width: 60ch;
   text-align: justify;
@@ -376,6 +398,19 @@ h4 {
   border-top: 1px solid var(--border);
 }
 
+/* Fixed-height excerpt boxes - if the body text overflows, a "Full
+   Article" link (addFullArticleLink in site.js) opens the complete text
+   in openNewsModal() instead of growing the card or the page. */
+.news-excerpt {
+  max-height: 11rem;
+  overflow: hidden;
+}
+
+.news-excerpt-card {
+  max-height: 4.5rem;
+  overflow: hidden;
+}
+
 @media (max-width: 720px) {
   .news-lead {
     grid-template-columns: 1fr;
@@ -387,6 +422,18 @@ p {
   max-width: 70ch;
 }
 
+p.sponsors > a {
+  text-decoration: none;
+  padding: 0.5rem;
+  font-size: 1.1rem;
+  letter-spacing: -0.01rem;
+}
+
+p.sponsors > a:hover {
+  font-weight: 800;
+}
+
+
 .eyebrow {
   display: block;
   font-size: 0.65rem;
@@ -395,6 +442,10 @@ p {
   text-transform: uppercase;
   color: var(--color-accent-700);
   margin-bottom: 0.35rem;
+}
+
+div#page-content > span.eyebrow {
+  font-size: 0.8rem;
 }
 
 .section-heading {
@@ -444,6 +495,12 @@ img.plate {
   cursor: zoom-in;
 }
 
+/* Player-row thumbnails skip .plate (the sepia mat would overwhelm a
+   40px image) but still open the same lightbox on click. */
+img.thumb-clickable {
+  cursor: zoom-in;
+}
+
 /* Click-to-enlarge overlay for every real photo (img.plate) - see
    initImageLightbox() in site.js. */
 .lightbox-backdrop {
@@ -467,8 +524,12 @@ img.plate {
 }
 
 .lightbox-img {
-  max-width: 90vw;
-  max-height: 90vh;
+  /* Capped in absolute px, not just vw/vh - a viewport-only cap lets an
+     image with no real intrinsic size (e.g. an SVG placeholder) stretch
+     to fill nearly the whole screen instead of displaying at a sane
+     "larger, but still a photo" size. */
+  max-width: min(90vw, 900px);
+  max-height: min(90vh, 700px);
   object-fit: contain;
   /* The full-size view intentionally skips the sepia .plate filter - it's
      meant to show the real photo, not the matted thumbnail treatment. */
@@ -577,6 +638,76 @@ img.plate {
   }
 }
 
+/* News/Event "Full Article" popup (openNewsModal in site.js) - same fixed-
+   height-modal-with-scrolling-content layout as the coach modal above. */
+.news-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-black, #000) 55%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 100;
+}
+
+.news-modal {
+  position: relative;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 2rem;
+  max-width: 44rem;
+  width: 100%;
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.news-modal-photo {
+  width: 220px;
+  height: 220px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.news-modal-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.news-modal-content {
+  max-height: 22rem;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+  padding-right: 0.5rem;
+}
+
+.news-modal-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .news-modal-content {
+    max-height: 150px;
+  }
+
+  .news-modal {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -606,6 +737,24 @@ img.plate {
   display: block;
 }
 
+/* Team photo | coaching staff + description, side by side, instead of a
+   full-width photo eating all the horizontal space (see
+   initRosterDetailPage in site.js) - the photo is still an img.plate, so
+   clicking it opens the full-size lightbox. */
+.roster-detail-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 720px) {
+  .roster-detail-header {
+    grid-template-columns: 1fr;
+  }
+}
+
 .card-body {
   padding: 0.9rem 1rem;
 }
@@ -621,6 +770,7 @@ img.plate {
   color: var(--muted);
   font-size: 0.9rem;
   margin: 0;
+  padding: 0.5rem 0;
 }
 
 table {
@@ -646,6 +796,20 @@ th {
 
 tbody tr:hover {
   background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.standings-table {
+  table-layout: fixed;
+}
+
+.standings-table th,
+.standings-table td {
+  text-align: center;
+}
+
+.standings-table .col-school {
+  text-align: left;
+  white-space: nowrap;
 }
 
 .filter-row {
@@ -773,31 +937,32 @@ tbody tr:hover {
    rather than a card feel. */
 .card-grid--list {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.75rem 2rem;
+  gap: 1rem 1.5rem;
   border-top: 1px solid var(--border);
-  padding-top: 1.5rem;
-  margin-top: 1.5rem;
+  padding-top: 1rem;
+  margin-top: 1rem;
 }
 
 .card--list {
   border: none;
   border-radius: 0;
-  padding-bottom: 1.25rem;
+  padding-bottom: 0.6rem;
   border-bottom: 1px solid var(--border);
 }
 
 .card--list h3 {
   margin: 0 0 0.15rem;
+  padding-left: -1rem;
 }
 
 .gym-section {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
-  gap: 2rem;
+  gap: 1.5rem;
   align-items: start;
-  margin-top: 2.5rem;
+  margin-top: 1.5rem;
   border-top: 1px solid var(--border);
-  padding-top: 1.5rem;
+  padding-top: 1rem;
 }
 
 .gym-section h2 {
@@ -874,9 +1039,23 @@ tbody tr:hover {
   border-bottom: 1px solid var(--border);
 }
 
+@media (min-width: 721px) {
+  .stat-row {
+    grid-template-columns: 0.8fr 0.8fr 1.4fr;
+  }
+}
+
+.stat-row > span.eyebrow {
+  font-size: 0.7rem;
+}
+
 .stat-col {
   padding: 1.1rem 1.25rem;
   border-right: 1px solid var(--border);
+}
+
+.stat-col > a {
+  padding: 1rem 0 0;
 }
 
 .stat-col:last-child {
@@ -885,7 +1064,7 @@ tbody tr:hover {
 
 .stat-value {
   font-family: var(--font-heading);
-  font-size: 1.9rem;
+  font-size: 1.5rem;
   font-weight: 500;
   line-height: 1.1;
 }
@@ -901,8 +1080,13 @@ tbody tr:hover {
   justify-content: space-between;
   gap: 0.75rem;
   font-size: 0.85rem;
-  padding: 0.3rem 0;
+  padding: 0.4rem 0;
   border-bottom: 1px solid var(--border);
+}
+
+.stat-list-link {
+  display: block;
+  padding-top: 0.6rem;
 }
 
 @media (max-width: 720px) {

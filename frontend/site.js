@@ -109,7 +109,7 @@ function initImageLightbox() {
   }
 
   document.addEventListener("click", (e) => {
-    const target = e.target.closest("img.plate");
+    const target = e.target.closest("img.plate, img.thumb-clickable");
     if (target) open(target.src, target.alt);
   });
   backdrop.addEventListener("click", (e) => {
@@ -125,13 +125,14 @@ async function initLayout() {
   const currentFile = window.location.pathname.split("/").pop() || "index.html";
   const currentTeamId = new URLSearchParams(window.location.search).get("team");
 
-  let blocks = [];
-  try {
-    blocks = await siteFetch("/content-blocks");
-  } catch (err) {
-    // fall back to an empty sidebar/header below
-  }
-  const [teams, contacts, standingsCache] = await Promise.all([
+  // All four run in parallel (not content-blocks awaited alone, then the
+  // rest) - every page needs at least blocks+teams, so serializing them
+  // just adds a second round-trip before the page's own fetches can even
+  // start. The caller-side page functions also reuse teams/contacts/
+  // standingsCache from the returned object below instead of re-fetching
+  // the same /rosters, /contacts, or /standings themselves.
+  const [blocks, teams, contacts, standingsCache] = await Promise.all([
+    siteFetch("/content-blocks").catch(() => []),
     siteFetch("/rosters").catch(() => []),
     siteFetch("/contacts").catch(() => []),
     siteFetch("/standings").catch(() => null),
@@ -226,7 +227,7 @@ async function initLayout() {
     );
   }
 
-  return blocks;
+  return { blocks, teams, contacts, standingsCache };
 }
 
 function setPageTitle(title) {
@@ -242,19 +243,16 @@ function sectionDivider(title, children) {
 }
 
 async function initHomePage() {
-  const blocks = await initLayout();
+  const { blocks, teams: rosters, standingsCache: standings } = await initLayout();
   const homeBlock = findBlock(blocks, "Home");
   const logoBlock = findBlockByGenerator(blocks, "Logo");
   setPageTitle(homeBlock?.title || "Welcome");
   const main = document.getElementById("page-content");
   main.appendChild(el("span", { class: "eyebrow", text: `${defaultSeason()} Season` }));
 
-  const [rosters, news, sponsors, standings, contacts, allGames] = await Promise.all([
-    siteFetch("/rosters"),
+  const [news, sponsors, allGames] = await Promise.all([
     siteFetch("/news"),
     siteFetch("/sponsors").catch(() => []),
-    siteFetch("/standings").catch(() => null),
-    siteFetch("/contacts").catch(() => []),
     siteFetch(`/schedule/${defaultSeason()}`).catch(() => []),
   ]);
 
@@ -266,7 +264,6 @@ async function initHomePage() {
   const upcomingGames = sortedGames.filter((g) => g.date >= today);
   const nextGame = upcomingGames[0];
   const thenGames = upcomingGames.slice(1, 4);
-  const gymContact = contacts.find((c) => c.type === "Physical Address");
 
   function gameLine(g) {
     const teamName = teamsById[g.team_id]?.name;
@@ -283,32 +280,31 @@ async function initHomePage() {
           class: `stat-value nums ${won ? "result-win" : "result-loss"}`,
           text: `${lastResult.our_score} – ${lastResult.opponent_score}`,
         }),
-        el("p", { class: "stat-meta", text: `${gameLine(lastResult)} · ${lastResult.date}` }),
+        el("p", { class: "stat-meta", text: gameLine(lastResult) }),
+        el("p", { class: "stat-meta nums", text: lastResult.date }),
       ])
     );
   }
   if (nextGame) {
-    const venueLabel =
-      nextGame.home_away === "Home"
-        ? `Home${gymContact?.label ? " · " + gymContact.label : ""}`
-        : `At ${nextGame.location || nextGame.opponent || ""}`;
     statRow.appendChild(
       el("div", { class: "stat-col" }, [
         el("span", { class: "eyebrow", text: "Next Game" }),
-        el("div", { class: "stat-value", text: nextGame.opponent || "" }),
+        el("div", {
+          class: "stat-value",
+          text: `${nextGame.home_away === "Home" ? "vs" : "at"} ${nextGame.opponent || ""}`,
+        }),
         el("p", { class: "stat-meta nums", text: `${nextGame.date}${nextGame.time ? " · " + nextGame.time : ""}` }),
-        el("p", { class: "stat-meta", text: venueLabel }),
       ])
     );
   }
   if (thenGames.length) {
     statRow.appendChild(
       el("div", { class: "stat-col" }, [
-        el("span", { class: "eyebrow", text: "Then" }),
+        el("span", { class: "eyebrow", text: "Upcoming" }),
         ...thenGames.map((g) =>
           el("div", { class: "stat-list-row" }, [el("span", { text: gameLine(g) }), el("span", { class: "nums", text: g.date })])
         ),
-        el("a", { href: "schedule.html", text: "Full schedule →" }),
+        el("a", { class: "stat-list-link", href: "schedule.html", text: "Full schedule →" }),
       ])
     );
   }
@@ -323,12 +319,19 @@ async function initHomePage() {
     const tbody = el("tbody");
     for (const row of standingsRows) {
       const isUs = logoBlock && (row.school || "").toLowerCase() === (logoBlock.title || "").toLowerCase();
-      const [wins, losses] = (row.league_record || "-").split("-");
+      const [leagueWins, leagueLosses] = (row.league_record || "-").split("-");
+      const [overallWins, overallLosses] = (row.overall_record || "-").split("-");
       tbody.appendChild(
         el("tr", isUs ? { class: "standings-row-us" } : {}, [
-          el("td", { text: row.school || "" }),
-          el("td", { class: "nums", text: wins || "" }),
-          el("td", { class: "nums", text: losses || "" }),
+          el("td", { class: "col-school" }, [
+            row.link
+              ? el("a", { href: row.link, target: "_blank", text: row.school || "" })
+              : el("span", { text: row.school || "" }),
+          ]),
+          el("td", { class: "nums", text: leagueWins || "" }),
+          el("td", { class: "nums", text: leagueLosses || "" }),
+          el("td", { class: "nums", text: overallWins || "" }),
+          el("td", { class: "nums", text: overallLosses || "" }),
           el("td", { class: "nums", text: row.league_pf || "" }),
           el("td", { class: "nums", text: row.league_pa || "" }),
           el("td", { class: "nums", text: row.streak || "" }),
@@ -339,20 +342,34 @@ async function initHomePage() {
       el("div", { class: "section-divider" }, [
         el("div", { class: "section-heading" }, [
           el("h2", { text: logoBlock?.league_name || "League Standings" }),
-          el("span", { class: "eyebrow", text: "Varsity Standings" }),
+          el("span", { class: "eyebrow", text: "Varsity" }),
         ]),
-        el("a", { href: "standings.html", text: "Full standings →" }),
-        el("table", { style: "margin-top:0.75rem" }, [
-          el("thead", {}, [el("tr", {}, ["School", "W", "L", "PF", "PA", "Streak"].map((t) => el("th", { text: t })))]),
+        el("table", { class: "standings-table", style: "margin-top:0.75rem" }, [
+          el(
+            "colgroup",
+            {},
+            ["25%", "9.375%", "9.375%", "9.375%", "9.375%", "9.375%", "9.375%", "18.75%"].map((w) => el("col", { style: `width:${w}` }))
+          ),
+          el("thead", {}, [
+            el("tr", {}, [
+              el("th", { class: "col-school", rowspan: "2", text: "School" }),
+              el("th", { colspan: "2", text: "League" }),
+              el("th", { colspan: "2", text: "Overall" }),
+              el("th", { rowspan: "2", text: "PF" }),
+              el("th", { rowspan: "2", text: "PA" }),
+              el("th", { rowspan: "2", text: "Streak" }),
+            ]),
+            el("tr", {}, [
+              el("th", { text: "W" }),
+              el("th", { text: "L" }),
+              el("th", { text: "W" }),
+              el("th", { text: "L" }),
+            ]),
+          ]),
           tbody,
         ]),
+        el("a", { class: "stat-list-link", href: "standings.html", text: "Full standings →" }),
       ])
-    );
-  }
-
-  if (sponsors.length) {
-    main.appendChild(
-      sectionDivider("Sponsors", [el("p", { text: sponsors.map((s) => s.name).filter(Boolean).join(" · ") })])
     );
   }
 
@@ -369,47 +386,77 @@ async function initHomePage() {
   const feed = [...activeEvents, ...activeArticles];
   const [lead, ...rest] = feed;
 
-  function newsEyebrow(n) {
-    return n.is_event ? `Event · ${n.published_date || ""}` : n.published_date || "";
+  // If a card's excerpt overflows its fixed-height box, add a "Full
+  // Article" link that opens the full text in a modal (openNewsModal)
+  // rather than growing the card or scrolling the whole page section.
+  function addFullArticleLink(excerptEl, containerEl, item) {
+    if (excerptEl.scrollHeight <= excerptEl.clientHeight + 1) return;
+    const link = el("a", { class: "stat-list-link", href: "#", text: "Full Article" });
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      openNewsModal(item);
+    });
+    containerEl.appendChild(link);
   }
 
   if (lead) {
+    const leadExcerpt = el("div", { class: "news-excerpt rich-text" }, [document.createTextNode(lead.body || "")]);
+    const leadCol = el("div", {}, [
+      el("h3", { text: lead.title || "" }),
+      el("p", { class: "stat-meta nums", text: lead.published_date || "" }),
+      leadExcerpt,
+    ]);
     main.appendChild(
       el("div", { class: "section-divider" }, [
         el("div", { class: "section-heading" }, [el("h2", { text: "News" }), el("a", { href: "news.html", text: "Read more →" })]),
         el(
           "article",
           { class: "news-lead" },
-          [
-            el("div", {}, [
-              el("span", { class: "eyebrow", text: newsEyebrow(lead) }),
-              el("h3", { text: lead.title || "" }),
-              el("p", { class: "rich-text", text: lead.body || "" }),
-              el("a", { href: "news.html", text: "Read the recap →" }),
-            ]),
-            lead.image ? el("img", { class: "plate news-lead-photo", src: lead.image, alt: "" }) : null,
-          ].filter(Boolean)
+          [leadCol, lead.image ? el("img", { class: "plate news-lead-photo", src: lead.image, alt: "" }) : null].filter(Boolean)
         ),
         rest.length
           ? el(
               "div",
               { class: "news-grid" },
-              rest.slice(0, 3).map((n) =>
-                el("div", {}, [
-                  el("span", { class: "eyebrow", text: newsEyebrow(n) }),
+              rest.slice(0, 3).map((n) => {
+                const excerpt = el("div", { class: "news-excerpt-card card-subtitle" }, [document.createTextNode(n.body || "")]);
+                const card = el("div", {}, [
                   el("h4", { text: n.title || "" }),
-                  el("p", { class: "card-subtitle", text: n.body || "" }),
-                ])
-              )
+                  el("p", { class: "stat-meta nums", text: n.published_date || "" }),
+                  excerpt,
+                ]);
+                addFullArticleLink(excerpt, card, n);
+                return card;
+              })
             )
           : null,
       ].filter(Boolean))
+    );
+    addFullArticleLink(leadExcerpt, leadCol, lead);
+  }
+
+  if (sponsors.length) {
+    const sortedSponsors = [...sponsors].sort((a, b) => {
+      const tierDiff = SPONSOR_TIERS.indexOf(a.tier) - SPONSOR_TIERS.indexOf(b.tier);
+      return tierDiff !== 0 ? tierDiff : (a.name || "").localeCompare(b.name || "");
+    });
+    main.appendChild(
+      sectionDivider("Sponsors", [
+        el(
+          "p",
+          { class: "sponsors" },
+          sortedSponsors.flatMap((s, i) => [
+            i > 0 ? document.createTextNode(" · ") : null,
+            s.website ? el("a", { href: s.website, target: "_blank", text: s.name || "" }) : el("span", { text: s.name || "" }),
+          ].filter(Boolean))
+        ),
+      ])
     );
   }
 }
 
 async function initMissionPage() {
-  const blocks = await initLayout();
+  const { blocks } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Mission Statement");
   setPageTitle(intro?.title || "Mission Statement");
   const main = document.getElementById("page-content");
@@ -417,13 +464,12 @@ async function initMissionPage() {
 }
 
 async function initRostersPage() {
-  const blocks = await initLayout();
+  const { blocks, teams } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Rosters");
   setPageTitle(intro?.title || "Rosters");
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
-  const teams = await siteFetch("/rosters");
   if (!teams.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No teams yet." }));
     return;
@@ -462,61 +508,118 @@ async function initRosterDetailPage() {
   document.title = team.name ? `${team.name} Roster` : "Roster";
   setPageTitle(team.name || "Roster");
 
-  if (team.image) main.appendChild(el("img", { class: "card-photo plate", src: team.image, alt: team.name || "" }));
-  if (coachNames) {
-    main.appendChild(el("span", { class: "eyebrow", text: "Coaching Staff" }));
-    main.appendChild(el("p", { class: "card-subtitle", text: coachNames }));
+  const teamDetails = el(
+    "div",
+    {},
+    [
+      coachNames ? el("span", { class: "eyebrow", text: "Coaching Staff" }) : null,
+      coachNames ? el("p", { class: "card-subtitle", text: coachNames }) : null,
+      team.description ? el("p", { class: "rich-text", text: team.description }) : null,
+    ].filter(Boolean)
+  );
+  if (team.image) {
+    // Two-panel grid (photo | details) instead of a full-width photo -
+    // the photo stays clickable for the full-size lightbox (img.plate,
+    // see initImageLightbox) even at this smaller display size.
+    main.appendChild(
+      el("div", { class: "roster-detail-header" }, [
+        el("img", { class: "card-photo plate", src: team.image, alt: team.name || "" }),
+        teamDetails,
+      ])
+    );
+  } else if (teamDetails.children.length) {
+    main.appendChild(teamDetails);
   }
-  if (team.description) main.appendChild(el("p", { class: "rich-text", text: team.description }));
 
   if (!players.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No players listed yet." }));
     return;
   }
 
+  const PLAYER_COLUMNS = [
+    { label: "" },
+    { label: "First name", key: "first_name" },
+    { label: "Last name", key: "last_name" },
+    { label: "#", key: "number" },
+    { label: "Height", key: "height" },
+    { label: "Year", key: "year" },
+  ];
+  let sortKey = null;
+  let sortAsc = true;
+
+  function comparePlayers(a, b) {
+    const av = a[sortKey] ?? "";
+    const bv = b[sortKey] ?? "";
+    const an = Number(av);
+    const bn = Number(bv);
+    const cmp = av !== "" && bv !== "" && !isNaN(an) && !isNaN(bn) ? an - bn : String(av).localeCompare(String(bv));
+    return sortAsc ? cmp : -cmp;
+  }
+
   const tbody = el("tbody");
-  for (const p of players) {
-    const photoCell = el("td");
-    if (p.image) photoCell.appendChild(el("img", { src: p.image, alt: "", style: "width:40px;height:40px;object-fit:cover;border-radius:6px" }));
-    tbody.appendChild(
-      el("tr", {}, [
-        photoCell,
-        el("td", { text: p.first_name || "" }),
-        el("td", { text: p.last_name || "" }),
-        el("td", { class: "nums", text: p.number || "" }),
-        el("td", { class: "nums", text: p.height || "" }),
-        el("td", { text: p.year || "" }),
-      ])
+  const thead = el("thead");
+  main.appendChild(
+    sectionDivider("Players", [el("table", {}, [thead, tbody])])
+  );
+
+  function paintHeader() {
+    thead.innerHTML = "";
+    thead.appendChild(
+      el(
+        "tr",
+        {},
+        PLAYER_COLUMNS.map((col) => {
+          if (!col.key) return el("th", { text: col.label });
+          const arrow = sortKey === col.key ? (sortAsc ? " ▲" : " ▼") : "";
+          const th = el("th", { text: col.label + arrow, style: "cursor:pointer" });
+          th.addEventListener("click", () => {
+            sortAsc = sortKey === col.key ? !sortAsc : true;
+            sortKey = col.key;
+            paintHeader();
+            paintRows();
+          });
+          return th;
+        })
+      )
     );
   }
 
-  main.appendChild(
-    sectionDivider("Players", [
-      el("table", {}, [
-        el("thead", {}, [
-          el(
-            "tr",
-            {},
-            ["", "First name", "Last name", "#", "Height", "Year"].map((t) => el("th", { text: t }))
-          ),
-        ]),
-        tbody,
-      ]),
-    ])
-  );
+  function paintRows() {
+    const rows = sortKey ? [...players].sort(comparePlayers) : players;
+    tbody.innerHTML = "";
+    for (const p of rows) {
+      // Player photos skip .plate (the sepia mat would overwhelm a 40px
+      // thumbnail - see the roster table gotcha), but still open the
+      // same full-size lightbox on click via the shared .thumb-clickable
+      // class (see initImageLightbox's delegated listener).
+      const photoCell = el("td");
+      if (p.image) photoCell.appendChild(el("img", { class: "thumb-clickable", src: p.image, alt: "", style: "width:40px;height:40px;object-fit:cover;border-radius:6px" }));
+      tbody.appendChild(
+        el("tr", {}, [
+          photoCell,
+          el("td", { text: p.first_name || "" }),
+          el("td", { text: p.last_name || "" }),
+          el("td", { class: "nums", text: p.number || "" }),
+          el("td", { class: "nums", text: p.height || "" }),
+          el("td", { text: p.year || "" }),
+        ])
+      );
+    }
+  }
+
+  paintHeader();
+  paintRows();
 }
 
 async function initSchedulePage() {
-  const blocks = await initLayout();
+  const { blocks, teams, contacts } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Schedule");
   setPageTitle(intro?.title || "Schedule");
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
-  const [teams, games] = await Promise.all([
-    siteFetch("/rosters"),
-    siteFetch(`/schedule/${defaultSeason()}`),
-  ]);
+  const gymContact = contacts.find((c) => c.type === "Physical Address");
+  const games = await siteFetch(`/schedule/${defaultSeason()}`);
 
   const teamsById = Object.fromEntries(teams.map((t) => [t.team_id, t]));
   const sorted = [...games].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
@@ -567,7 +670,13 @@ async function initSchedulePage() {
       const tbody = el("tbody");
       for (const g of group.games) {
         const addressCell = el("td");
-        if (g.address) {
+        if (g.home_away === "Home") {
+          addressCell.appendChild(
+            gymContact
+              ? el("a", { href: mapsUrl(gymContact.value || ""), target: "_blank", class: "maps-link", text: "Home" })
+              : el("span", { text: "Home" })
+          );
+        } else if (g.address) {
           addressCell.appendChild(
             el("a", { href: mapsUrl(g.address), target: "_blank", class: "maps-link", text: g.location || "Map" })
           );
@@ -576,12 +685,14 @@ async function initSchedulePage() {
         }
 
         let scoreCell;
-        if (g.our_score || g.opponent_score) {
+        if (g.our_score && g.opponent_score) {
           const won = Number(g.our_score) > Number(g.opponent_score);
           scoreCell = el("td", {
             class: `nums ${won ? "result-win" : "result-loss"}`,
-            text: `${g.our_score || "-"} : ${g.opponent_score || "-"}`,
+            text: `${g.our_score} : ${g.opponent_score} (${won ? "W" : "L"})`,
           });
+        } else if (g.our_score || g.opponent_score) {
+          scoreCell = el("td", { class: "nums", text: `${g.our_score || "-"} : ${g.opponent_score || "-"}` });
         } else {
           scoreCell = el("td", {});
         }
@@ -744,7 +855,7 @@ Element.prototype.also = function (fn) {
 };
 
 async function initNewsPage() {
-  const blocks = await initLayout();
+  const { blocks } = await initLayout();
   const intro = findBlockByGenerator(blocks, "News");
   setPageTitle(intro?.title || "News");
   const main = document.getElementById("page-content");
@@ -776,8 +887,8 @@ async function initNewsPage() {
         [
           post.image ? el("img", { class: "plate", src: post.image, alt: "" }) : null,
           el("div", {}, [
-            el("span", { class: "eyebrow", text: post.is_event ? `Event · ${post.published_date || ""}` : post.published_date || "" }),
             el("h2", { text: post.title || "", style: "margin-top:0" }),
+            el("p", { class: "stat-meta nums", text: post.published_date || "" }),
             el("p", { class: "rich-text", text: post.body || "" }),
           ]),
         ].filter(Boolean)
@@ -796,13 +907,13 @@ async function initNewsPage() {
 }
 
 async function initCoachesPage() {
-  const blocks = await initLayout();
+  const { blocks, teams } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Coaches");
   setPageTitle(intro?.title || "Coaches");
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
-  const [coaches, teams] = await Promise.all([siteFetch("/coaches"), siteFetch("/rosters").catch(() => [])]);
+  const coaches = await siteFetch("/coaches");
   if (!coaches.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No coaches listed yet." }));
     return;
@@ -909,6 +1020,49 @@ function openCoachModal(coach, teamLabel, card) {
   window.addEventListener("keydown", onKey);
 }
 
+// Same fixed-height-modal-with-scrolling-content layout as openCoachModal
+// above, reused here for a News/Event item's full text (see
+// addFullArticleLink in initHomePage) - only the .news-modal-content box
+// scrolls, so the title/date stay pinned on screen.
+let newsModalBackdrop = null;
+function openNewsModal(item) {
+  if (newsModalBackdrop) newsModalBackdrop.remove();
+
+  const closeBtn = el("button", { type: "button", class: "news-modal-close", "aria-label": "Close" }, [document.createTextNode("×")]);
+  const modal = el(
+    "div",
+    { class: "news-modal" },
+    [
+      closeBtn,
+      item.image ? el("img", { class: "plate news-modal-photo", src: item.image, alt: "" }) : null,
+      el("div", { class: "news-modal-body" }, [
+        el("h2", { text: item.title || "", style: "margin-top:0" }),
+        el("p", { class: "stat-meta nums", text: item.published_date || "" }),
+        el("div", { class: "news-modal-content" }, [el("p", { class: "rich-text", text: item.body || "" })]),
+      ]),
+    ].filter(Boolean)
+  );
+
+  const backdrop = el("div", { class: "news-modal-backdrop" }, [modal]);
+  newsModalBackdrop = backdrop;
+  document.body.appendChild(backdrop);
+
+  function close() {
+    backdrop.remove();
+    if (newsModalBackdrop === backdrop) newsModalBackdrop = null;
+    window.removeEventListener("keydown", onKey);
+  }
+  function onKey(e) {
+    if (e.key === "Escape") close();
+  }
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close();
+  });
+  modal.addEventListener("click", (e) => e.stopPropagation());
+  closeBtn.addEventListener("click", close);
+  window.addEventListener("keydown", onKey);
+}
+
 function contactValueNode(contact) {
   if (contact.type === "Email") {
     return el("a", { href: `mailto:${contact.value}`, text: contact.value || "" });
@@ -924,13 +1078,13 @@ function contactValueNode(contact) {
 }
 
 async function initContactPage() {
-  const blocks = await initLayout();
+  const { blocks, contacts: fetchedContacts } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Contact Us");
   setPageTitle(intro?.title || "Contact Us");
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
-  const contacts = await siteFetch("/contacts");
+  const contacts = [...fetchedContacts].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   if (!contacts.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No contact info yet." }));
     return;
@@ -964,7 +1118,7 @@ async function initContactPage() {
     const [street, ...rest] = (gymContact.value || "").split(",").map((s) => s.trim());
     const cityLine = rest.join(", ");
     main.appendChild(
-      el("div", { class: "gym-section" }, [
+      el("div", { class: "gym-section", id: "gym" }, [
         el(
           "div",
           {},
@@ -984,7 +1138,7 @@ async function initContactPage() {
 const SPONSOR_TIERS = ["Banner", "Court", "Friend of the Program"];
 
 async function initSponsorsPage() {
-  const blocks = await initLayout();
+  const { blocks } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Sponsors");
   setPageTitle(intro?.title || "Sponsors");
   const main = document.getElementById("page-content");
@@ -1017,7 +1171,7 @@ async function initSponsorsPage() {
 }
 
 async function initPhotosPage() {
-  const blocks = await initLayout();
+  const { blocks } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Photos");
   setPageTitle(intro?.title || "Photos");
   const main = document.getElementById("page-content");
@@ -1060,26 +1214,24 @@ async function initPhotosPage() {
 }
 
 const STANDINGS_COLUMNS = [
-  ["school", "School"],
-  ["league_record", "League W-L"],
-  ["league_pct", "League PCT"],
-  ["league_pf", "League PF"],
-  ["league_pa", "League PA"],
-  ["overall_record", "Overall W-L"],
-  ["overall_pct", "Overall PCT"],
-  ["overall_pf", "Overall PF"],
-  ["overall_pa", "Overall PA"],
-  ["streak", "Streak"],
+  { key: "school", label: "School" },
+  { key: "league_record", label: "W-L", group: "League" },
+  { key: "league_pct", label: "PCT", group: "League" },
+  { key: "league_pf", label: "PF", group: "League" },
+  { key: "league_pa", label: "PA", group: "League" },
+  { key: "overall_record", label: "W-L", group: "Overall" },
+  { key: "overall_pct", label: "PCT", group: "Overall" },
+  { key: "overall_pf", label: "PF", group: "Overall" },
+  { key: "overall_pa", label: "PA", group: "Overall" },
+  { key: "streak", label: "Streak" },
 ];
 
 async function initStandingsPage() {
-  const blocks = await initLayout();
+  const { blocks, standingsCache: cache } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Standings");
   setPageTitle(intro?.title || "League Standings");
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
-
-  const cache = await siteFetch("/standings");
 
   const rows = [...(cache?.rows || [])].sort(compareStandingsRows);
   if (!rows.length) {
@@ -1091,7 +1243,7 @@ async function initStandingsPage() {
   for (const row of rows) {
     const schoolCell = el(
       "td",
-      {},
+      { class: "col-school" },
       [
         row.link
           ? el("a", { href: row.link, target: "_blank", text: row.school || "" })
@@ -1103,16 +1255,43 @@ async function initStandingsPage() {
       el(
         "tr",
         {},
-        STANDINGS_COLUMNS.map(([key]) => (key === "school" ? schoolCell : el("td", { class: "nums", text: row[key] || "" })))
+        STANDINGS_COLUMNS.map(({ key }) => (key === "school" ? schoolCell : el("td", { class: "nums", text: row[key] || "" })))
       )
     );
   }
 
+  // <col> widths (rather than relying on header cell widths) so School
+  // gets real extra room regardless of the grouped League/Overall header
+  // above using colspan - fixed table layout only reads column widths
+  // reliably from a colgroup once any header row spans multiple columns.
+  const colgroup = el(
+    "colgroup",
+    {},
+    STANDINGS_COLUMNS.map(({ key }) => el("col", { style: key === "school" ? "width:22%" : key === "streak" ? "width:8%" : "width:8.75%" }))
+  );
+
+  const groupHeaderRow = el("tr", {}, [el("th", { class: "col-school", rowspan: "2", text: "School" })]);
+  let i = 1;
+  while (i < STANDINGS_COLUMNS.length) {
+    const { group } = STANDINGS_COLUMNS[i];
+    if (!group) {
+      groupHeaderRow.appendChild(el("th", { rowspan: "2", text: STANDINGS_COLUMNS[i].label }));
+      i++;
+      continue;
+    }
+    let span = 0;
+    while (i + span < STANDINGS_COLUMNS.length && STANDINGS_COLUMNS[i + span].group === group) span++;
+    groupHeaderRow.appendChild(el("th", { colspan: String(span), text: group }));
+    i += span;
+  }
+  const subHeaderRow = el(
+    "tr",
+    {},
+    STANDINGS_COLUMNS.filter((c) => c.group).map((c) => el("th", { text: c.label }))
+  );
+
   main.appendChild(
-    el("table", {}, [
-      el("thead", {}, [el("tr", {}, STANDINGS_COLUMNS.map(([, label]) => el("th", { text: label })))]),
-      tbody,
-    ])
+    el("table", { class: "standings-table" }, [colgroup, el("thead", {}, [groupHeaderRow, subHeaderRow]), tbody])
   );
 
   if (cache?.updated_at) {

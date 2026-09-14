@@ -1392,6 +1392,7 @@ async function renderScheduleSection(container) {
       { label: "Time", key: "time", text: (g) => g.time || "" },
       { label: "Team", key: "team_id", text: (g) => teamsById[g.team_id]?.name || "", flag: true },
       { label: "Opponent", key: "opponent", text: (g) => `${g.home_away === "Home" ? "vs" : "at"} ${g.opponent || ""}`, strong: true },
+      { label: "Location", key: "location", text: (g) => g.location || "" },
       { label: "Result", key: "our_score", text: resultText },
       { label: "League", key: "is_league", text: (g) => (g.is_league ? "Yes" : "") },
     ];
@@ -1402,9 +1403,14 @@ async function renderScheduleSection(container) {
       rows = rows.slice().sort((a, b) => {
         const av = col.text(a),
           bv = col.text(b);
-        const na = parseFloat(String(av).replace(/[^0-9.\-]/g, "")),
-          nb = parseFloat(String(bv).replace(/[^0-9.\-]/g, ""));
-        const cmp = !isNaN(na) && !isNaN(nb) && av !== "" && bv !== "" ? na - nb : String(av).localeCompare(String(bv));
+        // Number(), not a digit-stripping parseFloat - a date like
+        // "2026-11-16" would otherwise strip to "2026-11-16" (hyphens
+        // are kept for negative numbers) and parseFloat that down to
+        // just 2026, making every game in the same year compare equal
+        // instead of sorting by the real date.
+        const na = Number(av),
+          nb = Number(bv);
+        const cmp = av !== "" && bv !== "" && !isNaN(na) && !isNaN(nb) ? na - nb : String(av).localeCompare(String(bv));
         return listSort.dir === "asc" ? cmp : -cmp;
       });
     } else {
