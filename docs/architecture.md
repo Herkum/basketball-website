@@ -15,15 +15,17 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   `mission.html`) sharing `site.js`/
   `site.css`; `frontend/admin/` is the separate admin SPA with its own
   `app.js`/`style.css`.
-- **Public site layout**: every page uses a fixed left sidebar +
-  central-column shell (`.layout` > `#site-sidebar` + `.central-column` >
-  `#site-header` + `<main>`, see any page's HTML) — the header bar spans
-  only the central column's width, not the sidebar, and the whole `.layout`
-  is width-capped and centered (`max-width: 1400px`) so it doesn't stretch
-  edge-to-edge on wide viewports. `initLayout()` in `site.js` builds both
-  the header (from the `special` Content Block's body) and the sidebar nav
-  (one link per non-`special` Content Block, in `order`) and is called by
-  every `initXPage()` before it renders its own content.
+- **Public site layout**: `#site-header` sits *above* `.layout` as a full-
+  width bar (spans over the sidebar too, not just the central column) —
+  its own inner wrapper (`.site-header-inner`) is what's width-capped and
+  centered (`max-width: 1400px`) to line up with `.layout`'s matching cap,
+  so the header's content aligns with the sidebar/central-column boundary
+  below it without the bar itself looking clipped on wide viewports.
+  Below that, `.layout` is the sidebar + central-column row (`#site-sidebar`
+  + `.central-column` > `<main>`, see any page's HTML). `initLayout()` in
+  `site.js` builds both the header (the brand block — see below) and the
+  sidebar nav (one link per non-`special` Content Block, in `order`) and
+  is called by every `initXPage()` before it renders its own content.
 - **Public site visual style**: follows the real "Classical" design
   system (`designer/classical-dcb8c44c-cb34-4501-a2e9-cf858d85b40d/`,
   see its `readme.md` for the full spec) rather than an earlier guess —
@@ -59,29 +61,34 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   cross-references `/rosters`' `coach_ids` client-side to show an eyebrow
   of which team(s) a coach is on — inverse of a relationship Rosters
   already owns, not a new field.
-- **Sidebar brand/record/footer** (`initLayout()`, every page): a "Logo"
-  Content Block (`generator: "Logo"`, `special: true`/NoIndex like Header
-  — created once via `scripts/set_logo_block_and_reorder.py`) drives a
-  brand block at the top of the sidebar — its `image` is the logo (falls
-  back to a monogram of the first letter of each word in `title`, e.g.
-  "Newbury Park" → "NP", when no image is set), `title` is the short site
-  name, `body` is the tagline, and a `league_name` field (admin-only input
-  on the Content Blocks form, shown only when Generator is "Logo") feeds
-  the sidebar footer and the Home page standings heading. Because Header
-  and Logo are both NoIndex now, `initLayout` finds Header by title
-  (`findBlock(blocks, "Header")`), not by "the special block" — that
-  lookup would be ambiguous with two NoIndex blocks. Below the brand block
-  sits a W-L record box (Overall vs. League) read directly off our own row
-  in `/standings` (matched by `school` against the Logo block's `title`,
-  same matching used for the Home page's standings highlight) — Standings
-  is the authoritative source for records site-wide, not a client-side
-  computation from Schedule. (Schedule's `is_league` checkbox — "not every
-  opponent is a league game, tournaments and non-league games aren't" —
-  still exists on the admin form but nothing on the public site currently
-  reads it; it was the sidebar record's original data source before this
-  changed to read from Standings instead.) The sidebar footer pulls the
-  first `Physical Address` Contact's `value` plus the Logo block's
-  `league_name`.
+- **Header brand block + sidebar record/footer** (`initLayout()`, every
+  page): a "Logo" Content Block (`generator: "Logo"`, `special: true`/
+  NoIndex — created once via `scripts/set_logo_block_and_reorder.py`)
+  drives the brand block rendered inside the full-width header bar (see
+  "Public site layout" above) — its `image` is the logo (falls back to a
+  monogram of the first letter of each word in `title`, e.g. "Newbury
+  Park" → "NP", when no image is set), `title` is the short site name,
+  `body` is the tagline, and a `league_name` field (admin-only input on
+  the Content Blocks form, shown only when Generator is "Logo") feeds the
+  sidebar footer and the Home page standings heading. There is no more
+  separate "Header" Content Block — it used to hold the site-name text
+  shown in a plain header bar, but once the brand block moved into the
+  header that text was redundant with the Logo block's own `title`, so
+  the Header block was deleted; if `logoBlock` is ever missing entirely
+  (e.g. mid-setup on a fresh site), the header falls back to a plain
+  "Basketball" `.site-title` label rather than looking up any block by
+  name. At the top of the sidebar (now the first thing there, since the
+  brand block moved out of it) sits a W-L record box (Overall vs. League)
+  read directly off our own row in `/standings` (matched by `school`
+  against the Logo block's `title`, same matching used for the Home
+  page's standings highlight) — Standings is the authoritative source for
+  records site-wide, not a client-side computation from Schedule.
+  (Schedule's `is_league` checkbox — "not every opponent is a league
+  game, tournaments and non-league games aren't" — still exists on the
+  admin form but nothing on the public site currently reads it; it was
+  the sidebar record's original data source before this changed to read
+  from Standings instead.) The sidebar footer pulls the first `Physical
+  Address` Contact's `value` plus the Logo block's `league_name`.
 - **Home page**: `initHomePage` in `site.js` sets the page title from the
   Home Content Block's own `title` (not a hardcoded "Welcome") and shows
   a `${defaultSeason()} Season` eyebrow under it. Builds a `.stat-row`

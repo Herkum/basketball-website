@@ -14,24 +14,11 @@ Element.prototype.also = function (fn) {
   return this;
 };
 
-function isoDate(date) {
-  return date.toISOString().slice(0, 10);
-}
-
+// isoDate/defaultSeason live in shared.js (loaded before this file).
 function addDays(isoDateStr, days) {
   const d = new Date(`${isoDateStr}T00:00:00`);
   d.setDate(d.getDate() + days);
   return isoDate(d);
-}
-
-// Basketball seasons span a calendar-year boundary (roughly Nov-Feb), so
-// "this season" from July onward is year-(year+1); before that it's
-// (year-1)-year. Used to auto-load the Schedule tab instead of leaving it
-// on a blank "type a season and click Load" screen.
-function defaultSeason() {
-  const now = new Date();
-  const year = now.getFullYear();
-  return now.getMonth() >= 6 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
 }
 
 const overlayRoot = () => document.getElementById("ad-overlay-root");
@@ -486,6 +473,31 @@ function buildFileField(fd, value) {
   return { wrap, getValue: () => currentUrl };
 }
 
+// Autocomplete over a fixed list of {ref, label} options (e.g. News/Event
+// posts and Schedule games merged into one searchable list) built via the
+// native <input list="..."> + <datalist> pair — no custom dropdown needed.
+// Persists as {ref, label} so the label can be shown again without an
+// extra lookup; matching is by exact label text, so anything typed that
+// doesn't match a real option is treated as "no selection".
+function buildLinkSearchField(fd, value) {
+  const listId = "dl-" + Math.random().toString(36).slice(2);
+  const options = fd.searchOptions || [];
+  const byLabel = new Map(options.map((o) => [o.label, o]));
+
+  const datalist = el("datalist", { id: listId }, options.map((o) => el("option", { value: o.label })));
+  const input = el("input", { class: "ad-input", list: listId, placeholder: fd.placeholder || "Search…" });
+  input.value = value?.label || "";
+
+  const wrap = el("div", {}, [input, datalist]);
+  return {
+    wrap,
+    getValue: () => {
+      const match = byLabel.get(input.value.trim());
+      return match ? { ref: match.ref, label: match.label } : null;
+    },
+  };
+}
+
 /* ============================= Modal form ============================= */
 
 // meta.fields: [{ key,label,type,options,required,placeholder,span,help,
@@ -515,6 +527,7 @@ function openModal({ title, blurb, fields, initialValues, saveLabel, footnote, v
     else if (fd.type === "checkbox") built = buildCheckboxField(fd, value);
     else if (fd.type === "multi") built = buildMultiField(fd, value);
     else if (fd.type === "file") built = buildFileField(fd, value);
+    else if (fd.type === "linksearch") built = buildLinkSearchField(fd, value);
     else built = buildTextField(fd, value);
 
     form[fd.key] = built.getValue();
@@ -535,10 +548,6 @@ function openModal({ title, blurb, fields, initialValues, saveLabel, footnote, v
         if (fd.onChange) fd.onChange(form);
       });
     }
-    // Textarea's write/preview toggle needs to react to generator changes
-    // made by a *different* field, not just its own.
-    if (built.onFormChange) fields.forEach(() => {});
-
     const rowWrap = el("div", { class: fd.span === 2 ? "ad-field ad-field-span-2" : "ad-field" });
     if (fd.type !== "checkbox") rowWrap.appendChild(fieldLabel(fd));
     rowWrap.appendChild(controlEl);
@@ -1127,15 +1136,12 @@ function rostersMeta() {
       },
       { label: "Description", key: "description", render: (item) => ({ kind: "plain", text: (item.description || "").slice(0, 64) }) },
     ],
-    fields: async () => {
-      const coaches = await apiFetch("/coaches");
-      return [
-        { key: "name", label: "Team name", type: "text", required: true, span: 1, placeholder: "Varsity" },
-        { key: "image", label: "Team photo", type: "file", span: 1 },
-        { key: "description", label: "Description", type: "textarea", span: 2 },
-        { key: "coach_ids", label: "Coaches", type: "multi", span: 2, options: coaches.map((c) => ({ value: c.coach_id, label: c.name })) },
-      ];
-    },
+    fields: (ctx) => [
+      { key: "name", label: "Team name", type: "text", required: true, span: 1, placeholder: "Varsity" },
+      { key: "image", label: "Team photo", type: "file", span: 1 },
+      { key: "description", label: "Description", type: "textarea", span: 2 },
+      { key: "coach_ids", label: "Coaches", type: "multi", span: 2, options: ctx.coaches.map((c) => ({ value: c.coach_id, label: c.name })) },
+    ],
     extraActions: (item, ctx) => [{ label: "Players", onClick: () => ctx.openPlayers(item) }],
   };
 }
@@ -1177,6 +1183,27 @@ function playersMeta(team, back) {
   };
 }
 
+// Merges News/Event posts and the current season's Schedule games into one
+// searchable option list for an album's "Link to" autocomplete — an album
+// can be tied to either kind of thing (a game-night gallery to that game,
+// an event-recap gallery to the News/Event post) but they're two different
+// resources, so the field itself is what unifies them, not the data model.
+async function albumLinkOptions() {
+  const [news, games] = await Promise.all([
+    apiFetch("/news").catch(() => []),
+    apiFetch(`/schedule/${encodeURIComponent(defaultSeason())}`).catch(() => []),
+  ]);
+  const newsOptions = news.map((n) => ({
+    ref: `news:${n.post_id}`,
+    label: `${n.is_event ? "Event" : "News"}: ${n.title || "(untitled)"}${n.published_date ? " — " + n.published_date : ""}`,
+  }));
+  const gameOptions = games.map((g) => ({
+    ref: `schedule:${defaultSeason()}:${g.game_id}`,
+    label: `Game: ${g.date || ""} ${g.home_away === "Home" ? "vs" : "at"} ${g.opponent || ""}`,
+  }));
+  return [...newsOptions, ...gameOptions];
+}
+
 function albumsMeta() {
   return {
     label: "Photos",
@@ -1196,10 +1223,20 @@ function albumsMeta() {
     columns: [
       { label: "Title", key: "title", render: (item) => ({ kind: "plain", strong: true, text: item.title || "" }) },
       { label: "Date label", key: "date_label", render: (item) => ({ kind: "plain", text: item.date_label || "" }) },
+      { label: "Linked to", key: "linked", render: (item) => ({ kind: "flag", text: item.linked?.label || "" }) },
     ],
-    fields: [
+    fields: async () => [
       { key: "title", label: "Title", type: "text", required: true, span: 1, placeholder: "At Oaks Christian" },
       { key: "date_label", label: "Date label", type: "text", span: 1, placeholder: "Jan 8, or Dec 20–22" },
+      {
+        key: "linked",
+        label: "Link to News/Event or Game",
+        type: "linksearch",
+        span: 2,
+        placeholder: "Search news, events, or games…",
+        help: "Optional — ties this album to a specific post or game.",
+        searchOptions: await albumLinkOptions(),
+      },
     ],
     extraActions: (item, ctx) => [{ label: "Photos", onClick: () => ctx.openPhotos(item) }],
   };
@@ -1234,10 +1271,6 @@ function photosMeta(album, back) {
 }
 
 /* ============================== Schedule =============================== */
-
-function mapsUrl(address) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-}
 
 async function renderScheduleSection(container) {
   container.innerHTML = "";
@@ -1707,6 +1740,7 @@ async function renderRostersSection(container, driveTo) {
   const coaches = await apiFetch("/coaches");
   await renderGenericSection(container, meta, {
     openPlayers: (team) => driveTo({ kind: "players", team }),
+    coaches,
     coachesById: Object.fromEntries(coaches.map((c) => [c.coach_id, c])),
   });
 }

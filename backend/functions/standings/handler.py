@@ -78,13 +78,17 @@ def scrape_standings(source_url):
     return rows
 
 
+def _get_cached():
+    return table.get_item(Key={"cache_id": CACHE_ID}).get("Item") or {}
+
+
 def _refresh(source_url):
     new_rows = scrape_standings(source_url)
 
     # `link` is admin-set (see the League Standings admin tab), never
     # scraped - carry it forward from the previous cache by matching
     # school name, so a refresh doesn't wipe out links the admin entered.
-    cached = table.get_item(Key={"cache_id": CACHE_ID}).get("Item") or {}
+    cached = _get_cached()
     old_by_school = {(r.get("school") or "").lower(): r for r in cached.get("rows", [])}
     for row in new_rows:
         old = old_by_school.get((row.get("school") or "").lower())
@@ -100,39 +104,36 @@ def _refresh(source_url):
     return item
 
 
+def _try_refresh(source_url):
+    try:
+        return _response(200, _refresh(source_url))
+    except Exception as exc:
+        return _response(502, {"error": f"scrape failed: {exc}"})
+
+
 def handler(event, context):
     # A direct/scheduled invoke (e.g. a future EventBridge rule) has no
     # requestContext - treat it as an implicit refresh using the last
     # saved source_url, so adding a scheduled trigger later needs no
     # handler changes.
     if "requestContext" not in event:
-        cached = table.get_item(Key={"cache_id": CACHE_ID}).get("Item") or {}
-        source_url = cached.get("source_url")
+        source_url = _get_cached().get("source_url")
         if not source_url:
             return _response(400, {"error": "no source_url configured yet"})
-        try:
-            return _response(200, _refresh(source_url))
-        except Exception as exc:
-            return _response(502, {"error": f"scrape failed: {exc}"})
+        return _try_refresh(source_url)
 
     method = event["requestContext"]["http"]["method"]
 
     if method == "GET":
-        item = table.get_item(Key={"cache_id": CACHE_ID}).get("Item")
+        item = _get_cached()
         return _response(200, item or {"source_url": None, "updated_at": None, "rows": []})
 
     if method == "POST":
         body = json.loads(event.get("body") or "{}")
-        source_url = body.get("source_url")
-        if not source_url:
-            cached = table.get_item(Key={"cache_id": CACHE_ID}).get("Item") or {}
-            source_url = cached.get("source_url")
+        source_url = body.get("source_url") or _get_cached().get("source_url")
         if not source_url:
             return _response(400, {"error": "source_url required"})
-        try:
-            return _response(200, _refresh(source_url))
-        except Exception as exc:
-            return _response(502, {"error": f"scrape failed: {exc}"})
+        return _try_refresh(source_url)
 
     if method == "PUT":
         # Manual correction of the cached rows (e.g. fixing a scrape
@@ -142,7 +143,7 @@ def handler(event, context):
         rows = body.get("rows")
         if rows is None:
             return _response(400, {"error": "rows required"})
-        cached = table.get_item(Key={"cache_id": CACHE_ID}).get("Item") or {}
+        cached = _get_cached()
         item = {
             "cache_id": CACHE_ID,
             "source_url": cached.get("source_url"),

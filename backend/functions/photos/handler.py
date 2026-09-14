@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import uuid
 from decimal import Decimal
 
@@ -48,6 +49,7 @@ def handler(event, context):
         body = json.loads(event.get("body") or "{}")
         body["album_id"] = album_id
         body["photo_id"] = photo_id or body.get("photo_id") or str(uuid.uuid4())
+        body.setdefault("order", int(time.time() * 1000))
         table.put_item(Item=body)
         return _response(200, body)
 

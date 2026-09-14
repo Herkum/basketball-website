@@ -20,3 +20,24 @@ project instructions, not optional background reading.
 - No custom domain — still on the CloudFront default `*.cloudfront.net` URL.
 - Public-facing site content is still just a placeholder page.
 - Terraform state is local only.
+- Every `backend/functions/*/handler.py` duplicates its own `DecimalEncoder`/
+  `_response` boilerplate (by deliberate convention — there's no shared
+  Lambda layer, each function is packaged independently via
+  `infra/lambda.tf`'s per-directory `archive_file`). Worth a follow-up:
+  add a Lambda layer (or a shared source dir merged into each function's
+  zip at build time) holding `DecimalEncoder`/`_response`, then trim it out
+  of every handler — but that's a packaging/infra change, not a drop-in
+  code edit, so it hasn't been done opportunistically alongside feature
+  work.
+- `frontend/admin/app.js`'s generic `renderGenericSection()` table-paint
+  (sortable headers, flag/strong/muted cell rendering, row Edit/Delete
+  actions) is independently reimplemented a second and third time in
+  Schedule's `paintList()` and Standings' `paintTable()`, since both stay
+  off the generic engine for real reasons (Schedule needs a List/Calendar
+  toggle + team filter; Standings is a singleton bulk-`PUT` cache, not a
+  per-item REST resource). A future cleanup could factor just the
+  row/cell/actions painting into a shared `paintTable(container, columns,
+  rows, {onEdit, onDelete, sort})` helper reused by all three, leaving each
+  renderer only its genuinely bespoke parts — deferred for now since it
+  touches all three renderers' control flow and wasn't worth the
+  regression risk to do opportunistically.

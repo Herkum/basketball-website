@@ -1,11 +1,23 @@
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Lora:wght@400;600&display=swap");
 
 :root {
+  --color-yellow:    #FFFF5D;
+  --color-yellow-dk: #e2e231;
+  --color-white:     #FFFFFF;
+  --color-grey-lt:   #f3f2f2;
+  --color-grey:      #eae9e9;
+  --color-grey-dk:   #9f9d9d;
+  --color-black:     #201f1d;
+  --color-brown-lt2: #fff3e4;
+  --color-brown-lt:  #facb8d;
+  --color-brown:     #b68235;
+  --color-brown-dk:  #7d5411;
+
   --color-bg: #f3f2f2;
   --color-surface: #eae9e9;
   --color-text: #201f1d;
   --color-accent: #b68235;
-  --color-divider: color-mix(in srgb, #201f1d 16%, transparent);
+  --color-divider: #201f1d;
 
   --color-accent-100: #fff3e4;
   --color-accent-300: #facb8d;
@@ -16,16 +28,16 @@
   --font-heading-weight: 600;
   --font-body: "Lora", Georgia, serif;
 
-  --space-1: 4.6px;
-  --space-2: 9.2px;
-  --space-3: 13.8px;
-  --space-4: 18.4px;
-  --space-6: 27.6px;
-  --space-8: 36.8px;
+  --space-1: 5px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 18px;
+  --space-6: 28px;
+  --space-8: 36px;
 
   --radius-sm: 2px;
   --radius-md: 4px;
-  --radius-lg: 7px;
+  --radius-lg: 8px;
 
   --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
   --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
@@ -62,7 +74,7 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--text);
-  background: var(--bg);
+  background: var(--color-white);
   line-height: 1.55;
 }
 
@@ -79,7 +91,11 @@ a {
   display: flex;
   min-height: 100vh;
   align-items: stretch;
-  max-width: 1400px;
+  /* Matches the real max width of its children (#site-sidebar's fixed
+     220px + .central-column's own 900px cap) - a wider value here just
+     leaves unfilled space on the right since neither child can grow to
+     use it. */
+  max-width: 1120px;
   margin: 0 auto;
   background: var(--bg);
 }
@@ -87,7 +103,6 @@ a {
 #site-sidebar {
   flex: 0 0 220px;
   background: var(--color-surface);
-  border-right: 1px solid var(--border);
   padding: var(--space-4) 0;
 }
 
@@ -99,14 +114,23 @@ a {
   flex-direction: column;
 }
 
+/* Sits above .layout and spans over the sidebar too (not just the central
+   column), capped/centered to the same 1120px as .layout (#site-sidebar's
+   fixed 220px + .central-column's own 900px max-width) so it starts at
+   the sidebar's left edge and ends at the central column's right edge. */
 .site-header {
-  background: var(--bg);
-  color: var(--text);
-  padding: var(--space-3) var(--space-4);
-  display: flex;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.site-header-inner {
+  padding:     var(--space-3) var(--space-4);
+  display:     flex;
   align-items: center;
-  gap: var(--space-3);
-  border-bottom: 1px solid var(--border);
+  gap:         var(--space-3);
+  background:  var(--color-black);
+  color:       var(--color-yellow-dk);
+  border-bottom: 1px solid var(--color-brown-lt2);
 }
 
 .site-title {
@@ -116,56 +140,75 @@ a {
   text-decoration: none;
 }
 
+/* Now rendered inside the header bar (see .site-header-inner) rather than
+   at the top of the sidebar, so no divider/spacing of its own is needed -
+   the header's own border-bottom and .site-header-inner's padding already
+   provide that. */
 .brand-block {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0 1.5rem 1.25rem;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border);
   text-decoration: none;
-  color: var(--text);
+  color: var(--color-brown-lt);
 }
 
 .brand-logo {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 58px;
   object-fit: cover;
   flex-shrink: 0;
   border-radius: var(--radius-sm);
 }
 
+/* Shield-shaped monogram badge shown when the Logo Content Block has no
+   image set - falls back to the first letter of each word in the site
+   name (e.g. "Newbury Park" -> "NP"). */
 .brand-logo-fallback {
-  display: flex;
-  align-items: center;
+  width:          52px;
+  height:         58px;
+  flex:           0 0 auto;
+  background:     var(--color-yellow);
+  border:         1px solid var(--color-yellow-dk);
+  border-radius:  3px 3px 22px 22px;
+  display:        flex;
+  align-items:    center;
   justify-content: center;
-  background: var(--color-text);
-  color: var(--color-accent-300);
-  font-family: var(--font-heading);
-  font-weight: 600;
-  font-size: 1rem;
+  font-family:    var(--font-heading);
+  font-weight:    900;
+  font-size:      28px;
+  letter-spacing: 0.02em;
+  color:          var(--color-black);
 }
 
 .brand-name {
-  font-family: var(--font-heading);
-  font-weight: var(--font-heading-weight);
-  font-size: 1.15rem;
-  line-height: 1.1;
+  font-family:    var(--font-heading);
+  font-size:      2.25rem;
+  font-weight:    900;
+  line-height:    1.1;
+}
+
+/* index.html wraps the brand name in a real <h1> - reset it back to
+   .brand-name's own styling instead of the global h1 rule (2.6rem/400)
+   and the browser's default heading margin, which was pushing the text
+   down and throwing off the logo's vertical centering in the header. */
+.brand-name h1 {
+  margin: 0;
+  font: inherit;
 }
 
 .brand-tagline {
-  font-size: 0.65rem;
+  font-size:      1rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin-top: 0.2rem;
+  color:          #E5E559;
+  margin-top:     0.2rem;
 }
 
 .record-box {
   display: flex;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  margin: 0 1.5rem 1.25rem;
+  margin: 0 1.5rem 0.5rem;
   overflow: hidden;
 }
 
@@ -189,9 +232,18 @@ a {
   margin: 0.3rem 0 0;
 }
 
-.sidebar-footer {
-  padding: 1.25rem 1.5rem 0;
-  margin-top: 1.25rem;
+/* Sits below .layout (see any page's HTML), not inside #site-sidebar -
+   .layout's flex row stretches #site-sidebar and .central-column to equal
+   heights by default (align-items: stretch), and .layout itself has
+   min-height: 100vh, so simple document order already places this at
+   whichever is lower: the bottom of the sidebar/main content (always
+   equal to each other) or the page's 100vh floor on short pages. Capped
+   to the same 1120px as .site-header so it lines up with the columns
+   above it. */
+.site-footer {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 1.25rem var(--space-4);
   border-top: 1px solid var(--border);
   font-size: 0.8rem;
   color: var(--muted);
@@ -212,41 +264,40 @@ a {
 .site-nav a {
   color: var(--text);
   text-decoration: none;
-  font-size: 0.95rem;
-  padding: 0.55rem 1.5rem;
+  font-size: 1.15rem;
+  padding: 0.3rem 0.75rem;
   display: block;
-  border-left: 2px solid transparent;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--color-grey-dk);
 }
 
 .site-nav a:hover {
-  color: var(--color-accent-700);
+  color: var(--color-brown-dk);
 }
 
 .site-nav a.active {
-  color: var(--color-accent-700);
-  border-left-color: var(--color-accent);
-  font-weight: 600;
+  color:             var(--color-brown);
+  border-left-color: var(--color-brown);
+  font-weight:       600;
 }
 
 .site-nav a.sub-link {
-  padding-left: 2.5rem;
-  font-size: 0.85rem;
-  color: color-mix(in srgb, var(--text) 65%, transparent);
+  padding-left: 2rem;
+  font-size:    1rem;
+  color:        var(--color-grey-dk);
 }
 
 .site-nav a.sub-link:hover {
-  color: var(--color-accent-700);
+  color: var(--color-brown);
 }
 
 .site-nav a.sub-link.active {
-  color: var(--color-accent-700);
-  font-weight: 600;
+  color: var(--color-brown);
 }
 
 main {
   max-width: 1000px;
   margin: 0 auto;
-  padding: var(--space-6) var(--space-4) var(--space-8);
 }
 
 .page-intro {
@@ -255,6 +306,20 @@ main {
   margin-bottom: 2rem;
   max-width: 60ch;
   text-align: justify;
+  /* Every "body" field across the CMS (Content Blocks, News, Coach
+     profiles, etc.) is plain text rendered via textContent, not HTML -
+     so blank lines/line breaks the admin types are the only formatting
+     available. Browsers collapse consecutive whitespace by default;
+     pre-line preserves those newlines as real line/paragraph breaks
+     while still wrapping long lines normally. */
+  white-space: pre-line;
+}
+
+/* Same plain-text-formatting fix as .page-intro, for the handful of body
+   paragraphs that don't use that class (News body, Coach profile, Mission
+   Statement's own body, news excerpts). */
+.rich-text {
+  white-space: pre-line;
 }
 
 h1, h2, h3, .site-title {
@@ -265,8 +330,8 @@ h1, h2, h3, .site-title {
 }
 
 h1 {
-  font-size: 2.6rem;
-  font-weight: 400;
+  font-size:     2.25rem;
+  font-weight:   600;
   margin-bottom: 0.25rem;
 }
 
@@ -373,6 +438,143 @@ p {
   outline: 1px solid var(--color-divider);
   display: block;
   margin: 0;
+}
+
+img.plate {
+  cursor: zoom-in;
+}
+
+/* Click-to-enlarge overlay for every real photo (img.plate) - see
+   initImageLightbox() in site.js. */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-black, #000) 85%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 100;
+}
+
+/* site.css has no blanket `[hidden] { display: none !important }` guard
+   (unlike admin/style.css - see CLAUDE.md's gotcha about this), so this
+   element's own `display: flex` above would otherwise beat the browser's
+   default [hidden] rule at equal specificity and stay visible even with
+   the hidden attribute set. */
+.lightbox-backdrop[hidden] {
+  display: none;
+}
+
+.lightbox-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  /* The full-size view intentionally skips the sepia .plate filter - it's
+     meant to show the real photo, not the matted thumbnail treatment. */
+  filter: none;
+  border: none;
+  outline: none;
+  box-shadow: var(--shadow-md);
+}
+
+.lightbox-close {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.5rem;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 2.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Coaches page: click a card to highlight it and open its full detail
+   in coach-modal-backdrop (see openCoachModal() in site.js). Profile and
+   email are deliberately left off the card itself - only the modal
+   shows them. */
+.coach-card {
+  cursor: pointer;
+}
+
+.coach-card.is-active {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.coach-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-black, #000) 55%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 100;
+}
+
+.coach-modal {
+  position: relative;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 2rem;
+  max-width: 44rem;
+  width: 100%;
+  /* Deliberately no max-height/overflow here - the photo, name, title and
+     email must stay on screen. Only .coach-modal-profile (the free-text
+     part, which can run long) scrolls internally. */
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.coach-modal-photo {
+  width: 220px;
+  height: 220px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.coach-modal-body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Contact info (email) sits above this, always visible - only the
+   profile text itself scrolls once it exceeds this fixed height. */
+.coach-modal-profile {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+  padding-right: 0.5rem;
+}
+
+.coach-modal-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .coach-modal-profile {
+    max-height: 150px;
+  }
+
+  .coach-modal {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
 }
 
 .card-grid {
@@ -565,8 +767,11 @@ tbody tr:hover {
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
 }
 
-.contact-grid {
-  display: grid;
+/* List-style modifier on the shared .card/.card-grid component (see above)
+   — same grid, but each item is a hairline-underlined row instead of a
+   bordered box, for contexts like the Contact page that want a list feel
+   rather than a card feel. */
+.card-grid--list {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1.75rem 2rem;
   border-top: 1px solid var(--border);
@@ -574,12 +779,14 @@ tbody tr:hover {
   margin-top: 1.5rem;
 }
 
-.contact-card {
+.card--list {
+  border: none;
+  border-radius: 0;
   padding-bottom: 1.25rem;
   border-bottom: 1px solid var(--border);
 }
 
-.contact-card h3 {
+.card--list h3 {
   margin: 0 0 0.15rem;
 }
 
@@ -717,10 +924,7 @@ tbody tr:hover {
 .site-footer {
   text-align: center;
   padding: 2rem 1rem;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.site-footer a {
-  color: var(--muted);
+  background: var(--color-black);
+  color: var(--color-yellow-dk);
+  font-size: 1rem;
 }

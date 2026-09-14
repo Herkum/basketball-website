@@ -14,13 +14,7 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
-function mapsUrl(address) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-}
-
-function isoDate(date) {
-  return date.toISOString().slice(0, 10);
-}
+// mapsUrl/isoDate/defaultSeason live in shared.js (loaded before this file).
 
 // Ordinary News only shows within its published_date..end_date window.
 // Events are upcoming items meant to be visible as soon as they're
@@ -84,7 +78,50 @@ function compareStandingsRows(a, b) {
 // non-NoIndex Content Block in `order`, and an address/league footer) and
 // fills the header bar from the "Header" block's body. Returns the fetched
 // blocks so callers can look up their own page's block.
+// Click-to-enlarge for every real photo on the site (team/coach/news/
+// gallery images all carry the .plate class - see CLAUDE.md). Delegated
+// on document so it works for images rendered after this runs, and
+// scoped to "img.plate" specifically so the gym-photo-placeholder div
+// (also .plate-styled, but not a real image) isn't clickable. Set up
+// once from initLayout(), which every page calls before rendering its
+// own content.
+let lightboxInitialized = false;
+function initImageLightbox() {
+  if (lightboxInitialized) return;
+  lightboxInitialized = true;
+
+  const backdrop = el("div", { class: "lightbox-backdrop" });
+  const img = el("img", { class: "lightbox-img" });
+  const closeBtn = el("button", { type: "button", class: "lightbox-close", text: "×", "aria-label": "Close" });
+  backdrop.appendChild(img);
+  backdrop.appendChild(closeBtn);
+  backdrop.hidden = true;
+  document.body.appendChild(backdrop);
+
+  function close() {
+    backdrop.hidden = true;
+    img.src = "";
+  }
+  function open(src, alt) {
+    img.src = src;
+    img.alt = alt || "";
+    backdrop.hidden = false;
+  }
+
+  document.addEventListener("click", (e) => {
+    const target = e.target.closest("img.plate");
+    if (target) open(target.src, target.alt);
+  });
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop || e.target === closeBtn) close();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !backdrop.hidden) close();
+  });
+}
+
 async function initLayout() {
+  initImageLightbox();
   const currentFile = window.location.pathname.split("/").pop() || "index.html";
   const currentTeamId = new URLSearchParams(window.location.search).get("team");
 
@@ -100,44 +137,17 @@ async function initLayout() {
     siteFetch("/standings").catch(() => null),
   ]);
 
-  // Header and Logo are both NoIndex (excluded from the nav below), so
-  // Header can no longer be found by "the special block" alone - look it
-  // up by its fixed title, same as Home/Mission Statement.
-  const headerBlock = findBlock(blocks, "Header");
+  // Logo is NoIndex (excluded from the nav below) - looked up by generator,
+  // same as every other generator-driven block. It still drives the
+  // record box's/sidebar footer's/Standings page's "which row is us"
+  // matching below, but no longer the header markup itself - the header
+  // is static HTML in each page now (see any page's <header
+  // class="site-header">), not generated on the fly, since the brand
+  // identity essentially never changes. Updating it means editing that
+  // HTML directly, not the Logo Content Block.
   const logoBlock = findBlockByGenerator(blocks, "Logo");
-  const siteName = headerBlock?.body || "Basketball";
-
-  const header = document.getElementById("site-header");
-  header.appendChild(
-    el("header", { class: "site-header" }, [
-      el("a", { href: "index.html", class: "site-title", text: siteName }),
-    ])
-  );
 
   const sidebar = document.getElementById("site-sidebar");
-
-  if (logoBlock) {
-    sidebar.appendChild(
-      el("a", { href: "index.html", class: "brand-block" }, [
-        logoBlock.image
-          ? el("img", { class: "brand-logo", src: logoBlock.image, alt: logoBlock.title || "" })
-          : el("div", {
-              class: "brand-logo brand-logo-fallback",
-              text: (logoBlock.title || "")
-                .split(/\s+/)
-                .filter(Boolean)
-                .slice(0, 2)
-                .map((w) => w[0])
-                .join("")
-                .toUpperCase(),
-            }),
-        el("div", {}, [
-          el("div", { class: "brand-name", text: logoBlock.title || "" }),
-          logoBlock.body ? el("div", { class: "brand-tagline", text: logoBlock.body }) : null,
-        ].filter(Boolean)),
-      ])
-    );
-  }
 
   // The sidebar's record box reads directly off our own row in the
   // scraped Standings cache (matched by school name against the Logo
@@ -198,12 +208,16 @@ async function initLayout() {
 
   sidebar.appendChild(el("nav", { class: "site-nav" }, navItems));
 
+  // Rendered into #site-footer, a sibling below .layout (not inside the
+  // sidebar) - see the .site-footer CSS rule for why that alone puts it
+  // at the foot of the page.
   const addressContact = contacts.find((c) => c.type === "Physical Address");
-  if (addressContact || logoBlock?.league_name) {
-    sidebar.appendChild(
+  const footer = document.getElementById("site-footer");
+  if (footer && (addressContact || logoBlock?.league_name)) {
+    footer.appendChild(
       el(
         "div",
-        { class: "sidebar-footer" },
+        {},
         [
           addressContact ? el("div", { text: addressContact.value || "" }) : null,
           logoBlock?.league_name ? el("div", { text: logoBlock.league_name }) : null,
@@ -235,16 +249,16 @@ async function initHomePage() {
   const main = document.getElementById("page-content");
   main.appendChild(el("span", { class: "eyebrow", text: `${defaultSeason()} Season` }));
 
-  const [rosters, news, sponsors, standings, contacts] = await Promise.all([
+  const [rosters, news, sponsors, standings, contacts, allGames] = await Promise.all([
     siteFetch("/rosters"),
     siteFetch("/news"),
     siteFetch("/sponsors").catch(() => []),
     siteFetch("/standings").catch(() => null),
     siteFetch("/contacts").catch(() => []),
+    siteFetch(`/schedule/${defaultSeason()}`).catch(() => []),
   ]);
 
   const today = isoDate(new Date());
-  const allGames = await siteFetch(`/schedule/${defaultSeason()}`).catch(() => []);
   const teamsById = Object.fromEntries(rosters.map((t) => [t.team_id, t]));
   const sortedGames = [...allGames].filter((g) => g.date).sort((a, b) => a.date.localeCompare(b.date));
   const played = sortedGames.filter((g) => g.date < today && g.our_score && g.opponent_score);
@@ -370,7 +384,7 @@ async function initHomePage() {
             el("div", {}, [
               el("span", { class: "eyebrow", text: newsEyebrow(lead) }),
               el("h3", { text: lead.title || "" }),
-              el("p", { text: lead.body || "" }),
+              el("p", { class: "rich-text", text: lead.body || "" }),
               el("a", { href: "news.html", text: "Read the recap →" }),
             ]),
             lead.image ? el("img", { class: "plate news-lead-photo", src: lead.image, alt: "" }) : null,
@@ -399,13 +413,7 @@ async function initMissionPage() {
   const intro = findBlockByGenerator(blocks, "Mission Statement");
   setPageTitle(intro?.title || "Mission Statement");
   const main = document.getElementById("page-content");
-  if (intro?.body) main.appendChild(el("p", { text: intro.body }));
-}
-
-function defaultSeason() {
-  const now = new Date();
-  const year = now.getFullYear();
-  return now.getMonth() >= 6 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
+  if (intro?.body) main.appendChild(el("p", { class: "rich-text", text: intro.body }));
 }
 
 async function initRostersPage() {
@@ -459,7 +467,7 @@ async function initRosterDetailPage() {
     main.appendChild(el("span", { class: "eyebrow", text: "Coaching Staff" }));
     main.appendChild(el("p", { class: "card-subtitle", text: coachNames }));
   }
-  if (team.description) main.appendChild(el("p", { text: team.description }));
+  if (team.description) main.appendChild(el("p", { class: "rich-text", text: team.description }));
 
   if (!players.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No players listed yet." }));
@@ -770,7 +778,7 @@ async function initNewsPage() {
           el("div", {}, [
             el("span", { class: "eyebrow", text: post.is_event ? `Event · ${post.published_date || ""}` : post.published_date || "" }),
             el("h2", { text: post.title || "", style: "margin-top:0" }),
-            el("p", { text: post.body || "" }),
+            el("p", { class: "rich-text", text: post.body || "" }),
           ]),
         ].filter(Boolean)
       )
@@ -810,25 +818,95 @@ async function initCoachesPage() {
     }
   }
 
+  const grid = el("div", { class: "card-grid" });
+  main.appendChild(grid);
+
   for (const coach of coaches) {
     const teamLabel = (teamNamesByCoachId[coach.coach_id] || []).join(", ");
-    main.appendChild(
-      el(
-        "div",
-        { class: "coach-row" },
-        [
-          coach.image ? el("img", { class: "plate", src: coach.image, alt: coach.name || "" }) : null,
-          el("div", {}, [
-            teamLabel ? el("span", { class: "eyebrow", text: teamLabel }) : null,
-            el("h2", { text: coach.name || "", style: "margin-top:0" }),
-            el("p", { class: "card-subtitle", text: coach.title || "" }),
-            coach.profile ? el("p", { text: coach.profile }) : null,
-            coach.email ? el("a", { href: `mailto:${coach.email}`, text: coach.email }) : null,
-          ].filter(Boolean)),
-        ].filter(Boolean)
-      )
+    const card = el(
+      "div",
+      { class: "card coach-card", tabindex: "0", role: "button" },
+      [
+        coach.image ? el("img", { class: "card-photo plate", src: coach.image, alt: coach.name || "" }) : null,
+        el("div", { class: "card-body" }, [
+          teamLabel ? el("span", { class: "eyebrow", text: teamLabel }) : null,
+          el("p", { class: "card-title", text: coach.name || "" }),
+          el("p", { class: "card-subtitle", text: coach.title || "" }),
+        ].filter(Boolean)),
+      ].filter(Boolean)
     );
+    // Profile and email are deliberately left off the card - they only
+    // show in the popup (openCoachModal), which also highlights this
+    // card via .is-active for as long as it's open.
+    const openThisCoach = () => openCoachModal(coach, teamLabel, card);
+    // Stop the click here so it doesn't also bubble up to the document-
+    // level img.plate lightbox listener - the coach photo is a .plate
+    // image too, but a click on it should open the coach modal, not the
+    // full-size image lightbox.
+    card.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openThisCoach();
+    });
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openThisCoach();
+      }
+    });
+    grid.appendChild(card);
   }
+}
+
+let coachModalBackdrop = null;
+function openCoachModal(coach, teamLabel, card) {
+  document.querySelectorAll(".coach-card.is-active").forEach((el) => el.classList.remove("is-active"));
+  card.classList.add("is-active");
+
+  if (coachModalBackdrop) coachModalBackdrop.remove();
+
+  const closeBtn = el("button", { type: "button", class: "coach-modal-close", "aria-label": "Close" }, [document.createTextNode("×")]);
+  const modal = el(
+    "div",
+    { class: "coach-modal" },
+    [
+      closeBtn,
+      coach.image ? el("img", { class: "plate coach-modal-photo", src: coach.image, alt: coach.name || "" }) : null,
+      el("div", { class: "coach-modal-body" }, [
+        teamLabel ? el("span", { class: "eyebrow", text: teamLabel }) : null,
+        el("h2", { text: coach.name || "", style: "margin-top:0" }),
+        el("p", { class: "card-subtitle", text: coach.title || "" }),
+        coach.email ? el("a", { href: `mailto:${coach.email}`, text: coach.email }) : null,
+        // Fixed-height + its own scroll (not the whole modal) so the
+        // photo/name/title/email above always stay on screen even if the
+        // profile text runs long.
+        coach.profile ? el("div", { class: "coach-modal-profile" }, [el("p", { class: "rich-text", text: coach.profile })]) : null,
+      ].filter(Boolean)),
+    ].filter(Boolean)
+  );
+
+  const backdrop = el("div", { class: "coach-modal-backdrop" }, [modal]);
+  coachModalBackdrop = backdrop;
+  document.body.appendChild(backdrop);
+
+  function close() {
+    card.classList.remove("is-active");
+    backdrop.remove();
+    if (coachModalBackdrop === backdrop) coachModalBackdrop = null;
+    window.removeEventListener("keydown", onKey);
+  }
+  function onKey(e) {
+    if (e.key === "Escape") close();
+  }
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close();
+  });
+  // The modal's own photo is also a .plate image - without this, clicking
+  // it (or anything else inside the modal) would bubble up to the
+  // document-level img.plate lightbox listener and open that on top of
+  // this modal.
+  modal.addEventListener("click", (e) => e.stopPropagation());
+  closeBtn.addEventListener("click", close);
+  window.addEventListener("keydown", onKey);
 }
 
 function contactValueNode(contact) {
@@ -862,12 +940,12 @@ async function initContactPage() {
   const gridContacts = contacts.filter((c) => c !== gymContact);
 
   if (gridContacts.length) {
-    const grid = el("div", { class: "contact-grid" });
+    const grid = el("div", { class: "card-grid card-grid--list" });
     for (const contact of gridContacts) {
       grid.appendChild(
         el(
           "div",
-          { class: "contact-card" },
+          { class: "card card--list" },
           [
             contact.kind ? el("span", { class: "eyebrow", text: contact.kind }) : null,
             el("h3", { text: contact.label || contact.type || "" }),
@@ -951,8 +1029,12 @@ async function initPhotosPage() {
     return;
   }
 
-  for (const album of albums) {
-    const photos = await siteFetch(`/photos/${encodeURIComponent(album.album_id)}`).catch(() => []);
+  const photosByAlbum = await Promise.all(
+    albums.map((album) => siteFetch(`/photos/${encodeURIComponent(album.album_id)}`).catch(() => []))
+  );
+
+  albums.forEach((album, i) => {
+    const photos = photosByAlbum[i];
 
     const section = el("div", { class: "section-divider" }, [
       el("div", { class: "section-heading" }, [
@@ -974,7 +1056,7 @@ async function initPhotosPage() {
       section.appendChild(grid);
     }
     main.appendChild(section);
-  }
+  });
 }
 
 const STANDINGS_COLUMNS = [

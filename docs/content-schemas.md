@@ -124,11 +124,22 @@
   of the old free-text Content Block body.
 - `Albums` (PK `album_id`): `title`, `date_label` (free text — a month or
   a date range, e.g. "November" or "Dec 20–22", not a real date type since
-  events don't cleanly fit one), `order` (drag-to-reorder). Individual
-  photos live in the separate `Photos` table below, mirroring the
-  Rosters/Players split. The admin's Photos tab shows the album list, and
-  a "Photos" button per album opens a nested panel scoped to that
-  `album_id` (`renderPhotosSection` in `app.js`) — same pattern as
+  events don't cleanly fit one), `order` (drag-to-reorder), `linked`
+  (optional map `{ref, label}` — ties an album to a specific News/Event
+  post or Schedule game, e.g. a game-night gallery to that game, an event
+  recap gallery to its News/Event post; `ref` is `news:<post_id>` or
+  `schedule:<season>:<game_id>`, `label` is the display text cached at
+  save time so the admin table doesn't need an extra lookup to show it).
+  Set via the admin's "Link to News/Event or Game" field on the album
+  form — a native `<input list>`/`<datalist>` autocomplete
+  (`buildLinkSearchField`/`albumLinkOptions()` in `app.js`) built from
+  `/news` + the current season's `/schedule` merged into one searchable
+  list; nothing on the public site currently reads `linked`, it's
+  admin-only metadata for now. Individual photos live in the separate
+  `Photos` table below, mirroring the Rosters/Players split. The admin's
+  Photos tab (`renderAlbumsSection` in `app.js`) shows the album list, and
+  a "Photos" button per album drills into a `photosMeta(album, back)` view
+  scoped to that `album_id` — same generic-engine drill-down pattern as
   Rosters' "Players" button.
 - `Photos` (PK `album_id`, SK `photo_id`): `image` (CloudFront URL from
   the shared `/uploads` presigned-URL flow), `caption` (free text),
