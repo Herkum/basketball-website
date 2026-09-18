@@ -8,6 +8,9 @@ import boto3
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
+users_table = dynamodb.Table(os.environ["USERS_TABLE_NAME"])
+
+REQUIRED_PERMISSION = "Edit Content"
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -25,11 +28,27 @@ def _response(status, body):
     }
 
 
+def _caller_permissions(event):
+    claims = ((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt", {}).get("claims", {})
+    email = (claims.get("email") or "").lower()
+    if not email:
+        return set()
+    item = users_table.get_item(Key={"email": email}).get("Item")
+    if item is None:
+        return set()
+    permissions = item.get("permissions")
+    if permissions is None:
+        return {"Admin"}
+    return set(permissions)
+
+
 def handler(event, context):
     """Photo albums: title, date_label (free text - a month or a date
-    range), order (drag-to-reorder, same pattern as Coaches/Contacts).
-    Individual photos live in the separate Photos table, keyed by
-    album_id/photo_id (see backend/functions/photos).
+    range), description (free text, shown on the public Photos page under
+    the album title), linked (optional {ref, label} tying the album to a
+    News/Event post or Schedule game), order (drag-to-reorder, same
+    pattern as Coaches/Contacts). Individual photos live in the separate
+    Photos table, keyed by album_id/photo_id (see backend/functions/photos).
     """
     method = event["requestContext"]["http"]["method"]
     album_id = (event.get("pathParameters") or {}).get("album_id")
@@ -42,6 +61,10 @@ def handler(event, context):
         items = table.scan().get("Items", [])
         items.sort(key=lambda i: i.get("order", 0))
         return _response(200, items)
+
+    perms = _caller_permissions(event)
+    if "Admin" not in perms and REQUIRED_PERMISSION not in perms:
+        return _response(403, {"error": "forbidden"})
 
     if method in ("POST", "PUT"):
         body = json.loads(event.get("body") or "{}")

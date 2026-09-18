@@ -82,6 +82,20 @@ locals {
       path         = "/photos/{album_id}/{photo_id}"
       list_path    = "/photos/{album_id}"
     }
+    locations = {
+      function_key = "locations"
+      path         = "/locations/{location_id}"
+      list_path    = "/locations"
+    }
+    # Unlike every other resource, Users' data (name/email/permissions of
+    # everyone allowed to sign in) is never public - public_get overrides
+    # the item/list_routes locals' default of "GET is public" below.
+    users = {
+      function_key = "users"
+      path         = "/users/{email}"
+      list_path    = "/users"
+      public_get   = false
+    }
   }
 }
 
@@ -109,15 +123,16 @@ locals {
   # routes are declared per real HTTP method instead, leaving OPTIONS alone.
   methods = ["GET", "POST", "PUT", "DELETE"]
 
-  # GET is public (the public site reads this content with no login);
-  # POST/PUT/DELETE stay JWT-protected so only the admin can write.
+  # GET is public by default (the public site reads this content with no
+  # login); POST/PUT/DELETE stay JWT-protected so only the admin can write.
+  # A resource can opt out of public GET via `public_get = false` (Users).
   item_routes = merge([
     for name, r in local.api_routes : {
       for m in local.methods : "${name}-${m}" => {
         function_key = r.function_key
         path         = r.path
         method       = m
-        public       = m == "GET"
+        public       = m == "GET" ? lookup(r, "public_get", true) : false
       }
     }
   ]...)
@@ -128,7 +143,7 @@ locals {
         function_key = r.function_key
         path         = r.list_path
         method       = m
-        public       = m == "GET"
+        public       = m == "GET" ? lookup(r, "public_get", true) : false
       }
     }
   ]...)

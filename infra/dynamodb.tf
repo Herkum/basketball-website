@@ -147,3 +147,14 @@ resource "aws_dynamodb_table" "admin_allowlist" {
     type = "S"
   }
 }
+
+resource "aws_dynamodb_table" "locations" {
+  name         = "${var.project_name}-Locations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "location_id"
+
+  attribute {
+    name = "location_id"
+    type = "S"
+  }
+}

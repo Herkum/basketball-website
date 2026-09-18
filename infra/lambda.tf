@@ -58,6 +58,16 @@ locals {
       # 10s other resources' simple DynamoDB CRUD calls get.
       timeout = 20
     }
+    locations = {
+      dir        = "locations"
+      table_arn  = aws_dynamodb_table.locations.arn
+      table_name = aws_dynamodb_table.locations.name
+    }
+    users = {
+      dir        = "users"
+      table_arn  = aws_dynamodb_table.admin_allowlist.arn
+      table_name = aws_dynamodb_table.admin_allowlist.name
+    }
   }
 }
 
@@ -99,6 +109,16 @@ resource "aws_iam_role_policy" "function_policy" {
         Effect   = "Allow"
         Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan"]
         Resource = each.value.table_arn
+      },
+      # Every function looks up the caller's permissions out of the Users
+      # (AdminAllowlist) table before allowing a write - see each handler's
+      # `_caller_permissions()`. Read-only, and harmless to grant a second
+      # time to the `users` function itself, which already has full CRUD
+      # on this same table above.
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = aws_dynamodb_table.admin_allowlist.arn
       }
     ]
   })
@@ -117,7 +137,8 @@ resource "aws_lambda_function" "function" {
 
   environment {
     variables = {
-      TABLE_NAME = each.value.table_name
+      TABLE_NAME       = each.value.table_name
+      USERS_TABLE_NAME = aws_dynamodb_table.admin_allowlist.name
     }
   }
 }
@@ -217,6 +238,11 @@ resource "aws_iam_role_policy" "uploads_policy" {
         Effect   = "Allow"
         Action   = ["s3:PutObject"]
         Resource = "${aws_s3_bucket.site.arn}/images/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = aws_dynamodb_table.admin_allowlist.arn
       }
     ]
   })
@@ -233,7 +259,8 @@ resource "aws_lambda_function" "uploads" {
 
   environment {
     variables = {
-      BUCKET_NAME = aws_s3_bucket.site.id
+      BUCKET_NAME      = aws_s3_bucket.site.id
+      USERS_TABLE_NAME = aws_dynamodb_table.admin_allowlist.name
     }
   }
 }

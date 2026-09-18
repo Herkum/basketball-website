@@ -9,6 +9,9 @@ from boto3.dynamodb.conditions import Key
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
+users_table = dynamodb.Table(os.environ["USERS_TABLE_NAME"])
+
+REQUIRED_PERMISSION = "Edit Content"
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -24,6 +27,20 @@ def _response(status, body):
         "headers": {"Content-Type": "application/json"},
         "body": json.dumps(body, cls=DecimalEncoder),
     }
+
+
+def _caller_permissions(event):
+    claims = ((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt", {}).get("claims", {})
+    email = (claims.get("email") or "").lower()
+    if not email:
+        return set()
+    item = users_table.get_item(Key={"email": email}).get("Item")
+    if item is None:
+        return set()
+    permissions = item.get("permissions")
+    if permissions is None:
+        return {"Admin"}
+    return set(permissions)
 
 
 def handler(event, context):
@@ -44,6 +61,10 @@ def handler(event, context):
         items = table.query(KeyConditionExpression=Key("album_id").eq(album_id)).get("Items", [])
         items.sort(key=lambda i: i.get("order", 0))
         return _response(200, items)
+
+    perms = _caller_permissions(event)
+    if "Admin" not in perms and REQUIRED_PERMISSION not in perms:
+        return _response(403, {"error": "forbidden"})
 
     if method in ("POST", "PUT") and album_id:
         body = json.loads(event.get("body") or "{}")

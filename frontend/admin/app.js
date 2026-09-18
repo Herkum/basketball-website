@@ -21,16 +21,16 @@ function addDays(isoDateStr, days) {
   return isoDate(d);
 }
 
-const overlayRoot = () => document.getElementById("ad-overlay-root");
+const overlayRoot = () => document.getElementById("admin-overlay-root");
 
 /* ============================== Toast ============================== */
 
 let toastTimer = null;
 function showToast(text) {
   clearTimeout(toastTimer);
-  let toastEl = document.getElementById("ad-toast");
+  let toastEl = document.getElementById("admin-toast");
   if (toastEl) toastEl.remove();
-  toastEl = el("div", { class: "ad-toast", id: "ad-toast", text });
+  toastEl = el("div", { class: "admin-toast", id: "admin-toast", text });
   overlayRoot().appendChild(toastEl);
   toastTimer = setTimeout(() => toastEl.remove(), 2600);
 }
@@ -42,7 +42,7 @@ function openConfirm({ noun, name, onConfirm }) {
   const dialog = el("div", { class: "dialog" }).also((d) => (d.style.width = "min(440px, 100%)"));
   dialog.addEventListener("click", (e) => e.stopPropagation());
 
-  const deleteBtn = el("button", { type: "button", class: "btn btn-secondary ad-del", text: "Delete" });
+  const deleteBtn = el("button", { type: "button", class: "btn btn-secondary admin-del", text: "Delete" });
   const keepBtn = el("button", { type: "button", class: "btn btn-ghost", text: "Keep it" });
 
   deleteBtn.addEventListener("click", async () => {
@@ -57,7 +57,6 @@ function openConfirm({ noun, name, onConfirm }) {
     }
   });
   keepBtn.addEventListener("click", () => backdrop.remove());
-  backdrop.addEventListener("click", () => backdrop.remove());
 
   dialog.appendChild(el("h2", { class: "dialog-title", text: `Delete ${noun}?` }));
   dialog.appendChild(
@@ -101,17 +100,17 @@ function openImageCropDialog(srcDataUrl) {
       const dialog = el("div", { class: "dialog" }).also((d) => (d.style.width = "min(520px, 100%)"));
       dialog.addEventListener("click", (e) => e.stopPropagation());
 
-      const frame = el("div", { class: "ad-crop-frame" }).also((f) => {
+      const frame = el("div", { class: "admin-crop-frame" }).also((f) => {
         f.style.width = SW + "px";
         f.style.height = SH + "px";
       });
       const imgNode = el("img", { src: srcDataUrl, alt: "", draggable: "false" });
-      const windowEl = el("div", { class: "ad-crop-window" });
+      const windowEl = el("div", { class: "admin-crop-window" });
       frame.appendChild(imgNode);
       frame.appendChild(windowEl);
 
       const zoomRange = el("input", { type: "range", min: "0.4", max: "6", step: "0.02" });
-      const zoomLabel = el("span", { class: "ad-crop-zoom-label" });
+      const zoomLabel = el("span", { class: "admin-crop-zoom-label" });
 
       function geom() {
         const FW = SW * 0.82,
@@ -193,10 +192,6 @@ function openImageCropDialog(srcDataUrl) {
         close();
         reject(new Error("cancelled"));
       });
-      backdrop.addEventListener("click", () => {
-        close();
-        reject(new Error("cancelled"));
-      });
       window.addEventListener("keydown", onKey);
 
       useBtn.addEventListener("click", () => {
@@ -225,14 +220,14 @@ function openImageCropDialog(srcDataUrl) {
 
       dialog.appendChild(el("h2", { class: "dialog-title", text: "Crop image" }));
       dialog.appendChild(
-        el("p", { class: "ad-help", style: "margin:6px 0 0" }, [
+        el("p", { class: "admin-help", style: "margin:6px 0 0" }, [
           document.createTextNode(
             "The whole image is shown; the bright square window is what the site will use. Drag the image to reposition, scroll or slide to zoom in."
           ),
         ])
       );
       dialog.appendChild(el("div", { style: "margin:18px 0 0;display:flex;justify-content:center" }, [frame]));
-      dialog.appendChild(el("div", { class: "ad-crop-zoom-row" }, [el("span", { class: "ad-tools-label", text: "Zoom" }), zoomRange, zoomLabel]));
+      dialog.appendChild(el("div", { class: "admin-crop-zoom-row" }, [el("span", { class: "admin-tools-label", text: "Zoom" }), zoomRange, zoomLabel]));
       dialog.appendChild(el("div", { class: "dialog-actions" }, [useBtn, resetBtn, cancelBtn]));
       backdrop.appendChild(dialog);
       overlayRoot().appendChild(backdrop);
@@ -257,16 +252,16 @@ function readFileAsDataUrl(file) {
 // sibling values from it (e.g. Schedule's Away-only fields) via visibleIf.
 
 function fieldLabel(fd) {
-  return el("label", { class: "ad-lbl", for: "f-" + fd.key }, [
+  return el("label", { class: "admin-lbl", for: "f-" + fd.key }, [
     document.createTextNode(fd.label),
-    fd.required ? el("span", { class: "ad-req", text: " *" }) : null,
+    fd.required ? el("span", { class: "admin-req", text: " *" }) : null,
   ].filter(Boolean));
 }
 
 function buildTextField(fd, value) {
   const input = el("input", {
     id: "f-" + fd.key,
-    class: "ad-input",
+    class: "admin-input",
     type: fd.type === "number" ? "number" : fd.type === "date" ? "date" : fd.type === "email" ? "email" : "text",
     placeholder: fd.placeholder || "",
   });
@@ -277,7 +272,7 @@ function buildTextField(fd, value) {
 }
 
 function buildTextareaField(fd, value, form) {
-  const textarea = el("textarea", { id: "f-" + fd.key, class: "ad-input", rows: "6", placeholder: fd.placeholder || "" });
+  const textarea = el("textarea", { id: "f-" + fd.key, class: "admin-input", rows: "6", placeholder: fd.placeholder || "" });
   textarea.value = value == null ? "" : value;
   const wrap = el("div", {});
 
@@ -288,15 +283,15 @@ function buildTextareaField(fd, value, form) {
   }
 
   let mode = "write";
-  const writeTab = el("button", { type: "button", class: "ad-sort", text: "HTML" });
-  const previewTab = el("button", { type: "button", class: "ad-sort", text: "Preview" });
+  const writeTab = el("button", { type: "button", class: "admin-sort", text: "HTML" });
+  const previewTab = el("button", { type: "button", class: "admin-sort", text: "Preview" });
   const tabRow = el("div", { style: "display:flex;gap:14px;margin:-2px 0 8px;border-bottom:1px solid var(--color-divider)" }, [writeTab, previewTab]);
   const previewBox = el("div", {
     style:
       "border:1px solid var(--color-neutral-300);border-radius:var(--radius-sm);padding:16px 18px;min-height:150px;background:var(--color-bg);font-family:var(--font-body);line-height:1.6",
   });
   previewBox.hidden = true;
-  const previewHelp = el("div", { class: "ad-help", text: "Rendered as it will appear on the page, in the site's type. Scripts are not run." });
+  const previewHelp = el("div", { class: "admin-help", text: "Rendered as it will appear on the page, in the site's type. Scripts are not run." });
   previewHelp.hidden = true;
 
   function paintTabs() {
@@ -351,7 +346,7 @@ function buildSelectField(fd, value) {
   const options = fd.options || [];
   const select = el(
     "select",
-    { id: "f-" + fd.key, class: "ad-input" },
+    { id: "f-" + fd.key, class: "admin-input" },
     options.map((o) => el("option", { value: o.value != null ? o.value : o, text: o.label != null ? o.label : o || "None" }))
   );
   select.value = value == null || value === undefined ? (options[0]?.value ?? options[0] ?? "") : value;
@@ -361,7 +356,7 @@ function buildSelectField(fd, value) {
 function buildCheckboxField(fd, value) {
   const input = el("input", { type: "checkbox", id: "f-" + fd.key });
   input.checked = !!value;
-  const row = el("label", { class: "ad-checkbox-row" }, [input, el("span", { text: fd.checkLabel || fd.label })]);
+  const row = el("label", { class: "admin-checkbox-row" }, [input, el("span", { text: fd.checkLabel || fd.label })]);
   return { wrap: row, getValue: () => input.checked, isCheckbox: true };
 }
 
@@ -375,7 +370,7 @@ function buildMultiField(fd, value) {
     input.dataset.val = val;
     return el("label", {}, [input, el("span", { text: label })]);
   });
-  const wrap = el("div", { class: "ad-multi-row" }, boxes);
+  const wrap = el("div", { class: "admin-multi-row" }, boxes);
   return {
     wrap,
     getValue: () => boxes.filter((l) => l.querySelector("input").checked).map((l) => l.querySelector("input").dataset.val),
@@ -387,7 +382,7 @@ function buildMultiField(fd, value) {
 // upload, which called uploadImageBlob() directly on the selected file.
 function buildFileField(fd, value) {
   let currentUrl = value || "";
-  const thumb = el("span", { class: "ad-file-thumb" }).also((t) => {
+  const thumb = el("span", { class: "admin-file-thumb" }).also((t) => {
     t.style.width = "72px";
     t.style.height = "72px";
   });
@@ -396,11 +391,11 @@ function buildFileField(fd, value) {
   }
   paintThumb();
 
-  const nameEl = el("span", { class: "ad-file-name" });
+  const nameEl = el("span", { class: "admin-file-name" });
   const pickBtn = el("button", { type: "button", class: "btn btn-secondary", text: currentUrl ? "Replace image" : "Choose image" });
   const removeBtn = el("button", { type: "button", class: "btn btn-ghost", text: "Remove" });
   removeBtn.hidden = !currentUrl;
-  const errorEl = el("p", { class: "ad-help", style: "color:#8c2f21" });
+  const errorEl = el("p", { class: "admin-help", style: "color:#8c2f21" });
   errorEl.hidden = true;
 
   function paintName() {
@@ -453,7 +448,7 @@ function buildFileField(fd, value) {
     paintName();
   });
 
-  const drop = el("div", { class: "ad-file-drop" }, [thumb, el("div", { style: "min-width:0" }, [nameEl, el("div", { class: "ad-file-buttons" }, [pickBtn, removeBtn])])]);
+  const drop = el("div", { class: "admin-file-drop" }, [thumb, el("div", { style: "min-width:0" }, [nameEl, el("div", { class: "admin-file-buttons" }, [pickBtn, removeBtn])])]);
   drop.addEventListener("dragover", (e) => e.preventDefault());
   drop.addEventListener("drop", (e) => {
     e.preventDefault();
@@ -464,7 +459,7 @@ function buildFileField(fd, value) {
   const wrap = el("div", {}, [
     drop,
     fileInput,
-    el("div", { class: "ad-help" }, [
+    el("div", { class: "admin-help" }, [
       document.createTextNode(fd.raw ? "Drop an image here or choose a file. JPEG or PNG, at its original aspect ratio." : "Drop an image here or choose a file — you'll crop it to square next. JPEG or PNG."),
     ]),
     errorEl,
@@ -485,7 +480,7 @@ function buildLinkSearchField(fd, value) {
   const byLabel = new Map(options.map((o) => [o.label, o]));
 
   const datalist = el("datalist", { id: listId }, options.map((o) => el("option", { value: o.label })));
-  const input = el("input", { class: "ad-input", list: listId, placeholder: fd.placeholder || "Search…" });
+  const input = el("input", { class: "admin-input", list: listId, placeholder: fd.placeholder || "Search…" });
   input.value = value?.label || "";
 
   const wrap = el("div", {}, [input, datalist]);
@@ -548,10 +543,10 @@ function openModal({ title, blurb, fields, initialValues, saveLabel, footnote, v
         if (fd.onChange) fd.onChange(form);
       });
     }
-    const rowWrap = el("div", { class: fd.span === 2 ? "ad-field ad-field-span-2" : "ad-field" });
+    const rowWrap = el("div", { class: fd.span === 2 ? "admin-field admin-field-span-2" : "admin-field" });
     if (fd.type !== "checkbox") rowWrap.appendChild(fieldLabel(fd));
     rowWrap.appendChild(controlEl);
-    if (fd.help) rowWrap.appendChild(el("div", { class: "ad-help", text: fd.help }));
+    if (fd.help) rowWrap.appendChild(el("div", { class: "admin-help", text: fd.help }));
     bodyGrid.appendChild(rowWrap);
     builders.push({ fd, built, rowWrap, getValue: built.getValue });
   });
@@ -578,7 +573,6 @@ function openModal({ title, blurb, fields, initialValues, saveLabel, footnote, v
     if (e.key === "Escape") close();
   }
   cancelBtn.addEventListener("click", close);
-  backdrop.addEventListener("click", close);
   window.addEventListener("keydown", onKey);
 
   saveBtn.addEventListener("click", async () => {
@@ -625,10 +619,10 @@ function openModal({ title, blurb, fields, initialValues, saveLabel, footnote, v
       el("button", { type: "button", class: "btn btn-ghost", text: "Close" }).also((b) => b.addEventListener("click", close)),
     ])
   );
-  if (blurb) dialog.appendChild(el("p", { class: "ad-help", style: "margin:6px 0 0", text: blurb }));
+  if (blurb) dialog.appendChild(el("p", { class: "admin-help", style: "margin:6px 0 0", text: blurb }));
   dialog.appendChild(bodyGrid);
   dialog.appendChild(errorBox);
-  dialog.appendChild(el("div", { class: "dialog-actions" }, [saveBtn, cancelBtn, el("span", { class: "ad-footnote", text: footnote || "Esc to cancel" })]));
+  dialog.appendChild(el("div", { class: "dialog-actions" }, [saveBtn, cancelBtn, el("span", { class: "admin-footnote", text: footnote || "Esc to cancel" })]));
   backdrop.appendChild(dialog);
   overlayRoot().appendChild(backdrop);
 }
@@ -636,8 +630,8 @@ function openModal({ title, blurb, fields, initialValues, saveLabel, footnote, v
 /* ============================= Option lists ============================ */
 
 const PLAYER_YEARS = ["Freshman", "Sophomore", "Junior", "Senior"];
-const CONTENT_BLOCK_GENERATORS = ["", "Coaches", "Rosters", "Schedule", "News", "Contact Us", "Sponsors", "Photos", "Standings", "Logo", "Mission Statement"];
-const CONTACT_TYPES = ["Email", "Physical Address", "Instagram", "Phone"];
+const CONTENT_BLOCK_GENERATORS = ["", "Coaches", "Rosters", "Schedule", "News", "Contact Us", "Sponsors", "Photos", "Standings", "Logo", "Mission Statement", "Store", "Sponsorships", "Donate"];
+const CONTACT_TYPES = ["Email", "Physical Address", "Instagram", "Phone", "Website"];
 const CONTACT_KINDS = ["Program", "School", "Boosters", "Social"];
 const SPONSOR_TIERS = ["Banner", "Court", "Friend of the Program"];
 
@@ -661,7 +655,7 @@ async function renderGenericSection(container, meta, ctx = {}) {
   let dragId = null;
   let items = [];
 
-  const head = el("div", { class: "ad-section-head" });
+  const head = el("div", { class: "admin-section-head" });
   const headLeft = el("div", {});
   if (meta.backLabel) {
     headLeft.appendChild(
@@ -671,27 +665,27 @@ async function renderGenericSection(container, meta, ctx = {}) {
     );
   }
   headLeft.appendChild(el("h1", { text: meta.label }));
-  headLeft.appendChild(el("p", { class: "ad-section-blurb", text: meta.blurb || "" }));
+  headLeft.appendChild(el("p", { class: "admin-section-blurb", text: meta.blurb || "" }));
   head.appendChild(headLeft);
   const newBtn = el("button", { type: "button", class: "btn btn-primary", text: meta.newLabel });
   head.appendChild(newBtn);
   container.appendChild(head);
 
-  const toolbar = el("div", { class: "ad-toolbar" });
-  const searchInput = el("input", { class: "ad-input ad-search", type: "search", placeholder: meta.searchHint || "Search" });
-  const countLabel = el("span", { class: "ad-count" });
+  const toolbar = el("div", { class: "admin-toolbar" });
+  const searchInput = el("input", { class: "admin-input admin-search", type: "search", placeholder: meta.searchHint || "Search" });
+  const countLabel = el("span", { class: "admin-count" });
   const clearBtn = el("button", { type: "button", class: "btn btn-ghost", text: "Clear" });
   clearBtn.hidden = true;
-  const resortHint = el("span", { class: "ad-hint", text: "Drag ☰ to reorder · click a row to edit" });
+  const resortHint = el("span", { class: "admin-hint", text: "Drag ☰ to reorder · click a row to edit" });
   toolbar.appendChild(searchInput);
   toolbar.appendChild(countLabel);
   toolbar.appendChild(clearBtn);
   toolbar.appendChild(resortHint);
   container.appendChild(toolbar);
 
-  const tableWrap = el("div", { class: "ad-tbl-wrap" });
+  const tableWrap = el("div", { class: "admin-tbl-wrap" });
   container.appendChild(tableWrap);
-  const emptyBox = el("div", { class: "ad-empty" });
+  const emptyBox = el("div", { class: "admin-empty" });
   emptyBox.hidden = true;
   container.appendChild(emptyBox);
 
@@ -749,8 +743,8 @@ async function renderGenericSection(container, meta, ctx = {}) {
     emptyBox.hidden = rows.length !== 0;
     if (!rows.length) {
       emptyBox.innerHTML = "";
-      emptyBox.appendChild(el("div", { class: "ad-empty-title", text: q ? "Nothing matches that" : meta.emptyTitle }));
-      emptyBox.appendChild(el("p", { class: "ad-empty-body", text: q ? `No ${meta.noun}s contain "${query}".` : meta.emptyBody }));
+      emptyBox.appendChild(el("div", { class: "admin-empty-title", text: q ? "Nothing matches that" : meta.emptyTitle }));
+      emptyBox.appendChild(el("p", { class: "admin-empty-body", text: q ? `No ${meta.noun}s contain "${query}".` : meta.emptyBody }));
       emptyBox.appendChild(
         el("button", { type: "button", class: "btn btn-primary", text: q ? "Clear search" : meta.newLabel }).also((b) =>
           b.addEventListener("click", () => {
@@ -768,7 +762,7 @@ async function renderGenericSection(container, meta, ctx = {}) {
         el("th", { style: "width:26px" }),
         ...meta.columns.map((c) => {
           const active = sort && sort.key === c.key;
-          const label = el("button", { type: "button", class: "ad-sort", text: c.label + (active ? (sort.dir === "asc" ? " ▲" : " ▼") : "") });
+          const label = el("button", { type: "button", class: "admin-sort", text: c.label + (active ? (sort.dir === "asc" ? " ▲" : " ▼") : "") });
           label.addEventListener("click", () => {
             sort = active && sort.dir === "asc" ? { key: c.key, dir: "desc" } : { key: c.key, dir: "asc" };
             paint();
@@ -783,20 +777,20 @@ async function renderGenericSection(container, meta, ctx = {}) {
     rows.forEach((item) => {
       const tds = meta.columns.map((col) => {
         const cell = cellFor(col, item);
-        const td = el("td", { class: col.kind === "num" ? "ad-num" : "" });
+        const td = el("td", { class: col.kind === "num" ? "admin-num" : "" });
         if (cell.kind === "photo" && cell.url) {
-          td.appendChild(el("span", { class: "ad-plate-thumb" }).also((s) => (s.style.backgroundImage = `url("${cell.url}")`)));
+          td.appendChild(el("span", { class: "admin-plate-thumb" }).also((s) => (s.style.backgroundImage = `url("${cell.url}")`)));
         } else if (cell.kind === "flag" && cell.text) {
           td.appendChild(el("span", { class: "tag tag-outline", text: cell.text }));
         } else if (cell.text) {
           td.appendChild(el("span", { style: cell.strong ? "font-family:var(--font-heading);font-size:17px" : "", text: cell.text }));
         } else {
-          td.appendChild(el("span", { class: "ad-muted-cell", text: "—" }));
+          td.appendChild(el("span", { class: "admin-muted-cell", text: "—" }));
         }
         return td;
       });
 
-      const actions = el("div", { class: "ad-actions" });
+      const actions = el("div", { class: "admin-actions" });
       (meta.extraActions ? meta.extraActions(item, ctx) : []).forEach((a) => {
         actions.appendChild(
           el("button", { type: "button", class: "btn btn-ghost", text: a.label }).also((b) =>
@@ -816,7 +810,7 @@ async function renderGenericSection(container, meta, ctx = {}) {
         )
       );
       actions.appendChild(
-        el("button", { type: "button", class: "btn btn-secondary ad-del", text: "Delete" }).also((b) =>
+        el("button", { type: "button", class: "btn btn-secondary admin-del", text: "Delete" }).also((b) =>
           b.addEventListener("click", (e) => {
             e.stopPropagation();
             openConfirm({
@@ -833,7 +827,7 @@ async function renderGenericSection(container, meta, ctx = {}) {
         )
       );
 
-      const row = el("tr", { draggable: canDrag ? "true" : "false" }, [el("td", { class: "ad-drag", text: canDrag ? "☰" : "" }), ...tds, el("td", {}, [actions])]);
+      const row = el("tr", { draggable: canDrag ? "true" : "false" }, [el("td", { class: "admin-drag", text: canDrag ? "☰" : "" }), ...tds, el("td", {}, [actions])]);
       row.addEventListener("click", () => openEdit(item));
 
       if (canDrag) {
@@ -866,7 +860,7 @@ async function renderGenericSection(container, meta, ctx = {}) {
       tbody.appendChild(row);
     });
 
-    tableWrap.appendChild(el("table", { class: "ad-tbl" }, [thead, tbody]));
+    tableWrap.appendChild(el("table", { class: "admin-tbl" }, [thead, tbody]));
   }
 
   async function resolveFields() {
@@ -1079,6 +1073,64 @@ function contactsMeta() {
   };
 }
 
+const USER_PERMISSIONS = ["Admin", "Edit Season", "Edit Rosters", "Edit Contacts", "Edit Content"];
+
+function usersMeta() {
+  return {
+    label: "Users",
+    group: "Administration",
+    noun: "user",
+    newLabel: "New user",
+    blurb: "Everyone allowed to sign in to this dashboard, and what they're allowed to edit. Admin can edit everything, including this list.",
+    searchHint: "Search name or email",
+    emptyTitle: "No users yet",
+    emptyBody: "Add the first admin so someone else can sign in and manage the rest.",
+    idKey: "email",
+    listPath: () => "/users",
+    itemPath: (item) => `/users/${encodeURIComponent(item.email)}`,
+    createPath: () => "/users",
+    nameOf: (item) => `${item.first_name || ""} ${item.last_name || ""}`.trim() || item.email,
+    columns: [
+      { label: "Name", key: "name", render: (item) => ({ kind: "plain", strong: true, text: `${item.first_name || ""} ${item.last_name || ""}`.trim() }) },
+      { label: "Email", key: "email", render: (item) => ({ kind: "plain", text: item.email || "" }) },
+      { label: "Permissions", key: "permissions", render: (item) => ({ kind: "plain", text: item.permissions && item.permissions.length ? item.permissions.join(", ") : "" }) },
+    ],
+    fields: [
+      { key: "email", label: "Email", type: "email", required: true, span: 2, placeholder: "name@example.com" },
+      { key: "first_name", label: "First Name", type: "text", required: true, span: 1 },
+      { key: "last_name", label: "Last Name", type: "text", required: true, span: 1 },
+      { key: "permissions", label: "Permissions", type: "multi", span: 2, options: USER_PERMISSIONS, help: "Admin can also edit Users. Someone must always keep Admin." },
+    ],
+  };
+}
+
+function locationsMeta() {
+  return {
+    label: "Locations",
+    group: "Season",
+    noun: "location",
+    newLabel: "New location",
+    blurb: "Reusable venue name + address shortcuts. Pick one from the Schedule's Away-game form instead of retyping it every time.",
+    searchHint: "Search name or address",
+    emptyTitle: "No locations yet",
+    emptyBody: "Add a venue here so Away games on the Schedule can pick it from a list.",
+    idKey: "location_id",
+    reorder: true,
+    listPath: () => "/locations",
+    itemPath: (item) => `/locations/${encodeURIComponent(item.location_id)}`,
+    createPath: () => "/locations",
+    nameOf: (item) => item.name,
+    columns: [
+      { label: "Name", key: "name", render: (item) => ({ kind: "plain", strong: true, text: item.name || "" }) },
+      { label: "Address", key: "address", render: (item) => ({ kind: "plain", text: item.address || "" }) },
+    ],
+    fields: [
+      { key: "name", label: "Name", type: "text", required: true, span: 1, placeholder: "Oaks Christian HS" },
+      { key: "address", label: "Address", type: "text", span: 1, placeholder: "31749 La Tienda Dr, Westlake Village, CA 91362" },
+    ],
+  };
+}
+
 function sponsorsMeta() {
   return {
     label: "Sponsors",
@@ -1223,11 +1275,13 @@ function albumsMeta() {
     columns: [
       { label: "Title", key: "title", render: (item) => ({ kind: "plain", strong: true, text: item.title || "" }) },
       { label: "Date label", key: "date_label", render: (item) => ({ kind: "plain", text: item.date_label || "" }) },
+      { label: "Description", key: "description", render: (item) => ({ kind: "plain", text: (item.description || "").slice(0, 64) }) },
       { label: "Linked to", key: "linked", render: (item) => ({ kind: "flag", text: item.linked?.label || "" }) },
     ],
     fields: async () => [
       { key: "title", label: "Title", type: "text", required: true, span: 1, placeholder: "At Oaks Christian" },
       { key: "date_label", label: "Date label", type: "text", span: 1, placeholder: "Jan 8, or Dec 20–22" },
+      { key: "description", label: "Description", type: "textarea", span: 2, placeholder: "A short paragraph about this album." },
       {
         key: "linked",
         label: "Link to News/Event or Game",
@@ -1281,20 +1335,21 @@ async function renderScheduleSection(container) {
   let calMonth = null;
   let teams = [];
   let games = [];
+  let locations = [];
 
-  const head = el("div", { class: "ad-section-head" }, [
-    el("div", {}, [el("h1", { text: "Schedule" }), el("p", { class: "ad-section-blurb", text: "Every game for the season, all three teams. Enter scores after the game and the result posts itself." })]),
+  const head = el("div", { class: "admin-section-head" }, [
+    el("div", {}, [el("h1", { text: "Schedule" }), el("p", { class: "admin-section-blurb", text: "Every game for the season, all three teams. Enter scores after the game and the result posts itself." })]),
     el("button", { type: "button", class: "btn btn-primary", text: "New game" }).also((b) => b.addEventListener("click", () => openGameModal(null))),
   ]);
   container.appendChild(head);
 
-  const seasonRow = el("div", { class: "ad-tools-row" });
-  const seasonInput = el("input", { class: "ad-input", style: "max-width:140px", value: season });
+  const seasonRow = el("div", { class: "admin-tools-row" });
+  const seasonInput = el("input", { class: "admin-input", style: "max-width:140px", value: season });
   const loadBtn = el("button", { type: "button", class: "btn btn-secondary", text: "Load" });
-  seasonRow.appendChild(el("div", { class: "ad-tools-group" }, [el("span", { class: "ad-tools-label", text: "Season" }), seasonInput, loadBtn]));
+  seasonRow.appendChild(el("div", { class: "admin-tools-group" }, [el("span", { class: "admin-tools-label", text: "Season" }), seasonInput, loadBtn]));
   container.appendChild(seasonRow);
 
-  const toolsRow = el("div", { class: "ad-tools-row" });
+  const toolsRow = el("div", { class: "admin-tools-row" });
   container.appendChild(toolsRow);
 
   const bodyBox = el("div", {});
@@ -1314,8 +1369,12 @@ async function renderScheduleSection(container) {
       { key: "home_away", label: "Home or away", type: "select", options: ["Home", "Away"], span: 1 },
       { key: "team_id", label: "Team", type: "select", options: [{ value: "", label: "(none)" }, ...teams.map((t) => ({ value: t.team_id, label: t.name || "" }))], span: 1 },
       { key: "is_league", label: "League game", type: "checkbox", checkLabel: "Counts toward league standings", span: 1 },
-      { key: "location", label: "Location", type: "text", placeholder: "Oaks Christian HS", span: 1, visibleIf: (f) => f.home_away === "Away" },
-      { key: "address", label: "Address (for Google Maps)", type: "text", span: 1, visibleIf: (f) => f.home_away === "Away" },
+      {
+        key: "location_id", label: "Location", type: "select", span: 1,
+        options: [{ value: "", label: "(select a location)" }, ...locations.map((l) => ({ value: l.location_id, label: l.name || "" }))],
+        visibleIf: (f) => f.home_away === "Away",
+        help: "Manage the list under Season → Locations.",
+      },
       { key: "our_score", label: "Our score", type: "number", span: 1, help: "Leave both scores blank until the game is played." },
       { key: "opponent_score", label: "Opponent score", type: "number", span: 1 },
     ];
@@ -1328,12 +1387,36 @@ async function renderScheduleSection(container) {
       initialValues: game || { home_away: "Home", team_id: teams[0]?.team_id || "" },
       saveLabel: game ? "Save changes" : "Create game",
       onSave: async (values) => {
+        // Location/address are denormalized onto the game record itself
+        // (same as before) so the public schedule page needs no extra
+        // lookup - location_id is just how the admin form picks them.
+        if (values.home_away === "Away" && values.location_id) {
+          const loc = locations.find((l) => l.location_id === values.location_id);
+          if (loc) {
+            values.location = loc.name || "";
+            values.address = loc.address || "";
+          }
+        }
         const path = game ? `/schedule/${encodeURIComponent(season)}/${encodeURIComponent(game.game_id)}` : `/schedule/${encodeURIComponent(season)}`;
         await apiFetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) });
         showToast(game ? "Changes saved" : "Game created");
         await refresh();
       },
     });
+  }
+
+  // Renaming a Location shouldn't strand every game that already picked it
+  // showing the old name - resolve live off location_id at display time,
+  // falling back to the denormalized text only when there's no match (a
+  // deleted Location, or a game that predates location_id/is unmapped).
+  function gameLocationText(g) {
+    const loc = g.location_id && locations.find((l) => l.location_id === g.location_id);
+    return (loc && loc.name) || g.location || "";
+  }
+
+  function gameAddressText(g) {
+    const loc = g.location_id && locations.find((l) => l.location_id === g.location_id);
+    return (loc && loc.address) || g.address || "";
   }
 
   function teamName(id) {
@@ -1346,11 +1429,11 @@ async function renderScheduleSection(container) {
 
   function paintToolsRow() {
     toolsRow.innerHTML = "";
-    const teamGroup = el("div", { class: "ad-tools-group" }, [el("span", { class: "ad-tools-label", text: "Team" })]);
+    const teamGroup = el("div", { class: "admin-tools-group" }, [el("span", { class: "admin-tools-label", text: "Team" })]);
     const teamTabs = el("div", { style: "display:flex;gap:6px" });
     ["All teams", ...teams.map((t) => t.name || "")].forEach((name) => {
       teamTabs.appendChild(
-        el("button", { type: "button", class: "ad-tab" + (teamFilter === name ? " is-on" : ""), text: name === "Junior Varsity" ? "JV" : name }).also((b) =>
+        el("button", { type: "button", class: "admin-tab" + (teamFilter === name ? " is-on" : ""), text: name === "Junior Varsity" ? "JV" : name }).also((b) =>
           b.addEventListener("click", () => {
             teamFilter = name;
             paintAll();
@@ -1360,10 +1443,10 @@ async function renderScheduleSection(container) {
     });
     teamGroup.appendChild(teamTabs);
 
-    const viewGroup = el("div", { class: "ad-tools-group" }, [el("span", { class: "ad-tools-label", text: "View" })]);
+    const viewGroup = el("div", { class: "admin-tools-group" }, [el("span", { class: "admin-tools-label", text: "View" })]);
     const viewTabs = el("div", { style: "display:flex;gap:6px" }, [
-      el("button", { type: "button", class: "ad-tab" + (view === "list" ? " is-on" : ""), text: "List" }).also((b) => b.addEventListener("click", () => setView("list"))),
-      el("button", { type: "button", class: "ad-tab" + (view === "calendar" ? " is-on" : ""), text: "Calendar" }).also((b) => b.addEventListener("click", () => setView("calendar"))),
+      el("button", { type: "button", class: "admin-tab" + (view === "list" ? " is-on" : ""), text: "List" }).also((b) => b.addEventListener("click", () => setView("list"))),
+      el("button", { type: "button", class: "admin-tab" + (view === "calendar" ? " is-on" : ""), text: "Calendar" }).also((b) => b.addEventListener("click", () => setView("calendar"))),
     ]);
     viewGroup.appendChild(viewTabs);
 
@@ -1392,7 +1475,7 @@ async function renderScheduleSection(container) {
       { label: "Time", key: "time", text: (g) => g.time || "" },
       { label: "Team", key: "team_id", text: (g) => teamsById[g.team_id]?.name || "", flag: true },
       { label: "Opponent", key: "opponent", text: (g) => `${g.home_away === "Home" ? "vs" : "at"} ${g.opponent || ""}`, strong: true },
-      { label: "Location", key: "location", text: (g) => g.location || "" },
+      { label: "Location", key: "location", text: gameLocationText },
       { label: "Result", key: "our_score", text: resultText },
       { label: "League", key: "is_league", text: (g) => (g.is_league ? "Yes" : "") },
     ];
@@ -1417,13 +1500,13 @@ async function renderScheduleSection(container) {
       rows = rows.slice().sort((a, b) => String(a.date || "").localeCompare(b.date || ""));
     }
 
-    bodyBox.appendChild(el("p", { class: "ad-count", style: "margin:0 0 12px", text: `${rows.length} ${rows.length === 1 ? "game" : "games"}` }));
+    bodyBox.appendChild(el("p", { class: "admin-count", style: "margin:0 0 12px", text: `${rows.length} ${rows.length === 1 ? "game" : "games"}` }));
 
     if (!rows.length) {
       bodyBox.appendChild(
-        el("div", { class: "ad-empty" }, [
-          el("div", { class: "ad-empty-title", text: "No games yet" }),
-          el("p", { class: "ad-empty-body", text: "Add the first game of the season, or paste the league slate." }),
+        el("div", { class: "admin-empty" }, [
+          el("div", { class: "admin-empty-title", text: "No games yet" }),
+          el("p", { class: "admin-empty-body", text: "Add the first game of the season, or paste the league slate." }),
           el("button", { type: "button", class: "btn btn-primary", text: "New game" }).also((b) => b.addEventListener("click", () => openGameModal(null))),
         ])
       );
@@ -1437,7 +1520,7 @@ async function renderScheduleSection(container) {
         columns
           .map((c) => {
             const active = listSort && listSort.key === c.key;
-            const label = el("button", { type: "button", class: "ad-sort", text: c.label + (active ? (listSort.dir === "asc" ? " ▲" : " ▼") : "") });
+            const label = el("button", { type: "button", class: "admin-sort", text: c.label + (active ? (listSort.dir === "asc" ? " ▲" : " ▼") : "") });
             label.addEventListener("click", () => {
               listSort = active && listSort.dir === "asc" ? { key: c.key, dir: "desc" } : { key: c.key, dir: "asc" };
               paintList();
@@ -1455,17 +1538,17 @@ async function renderScheduleSection(container) {
         const td = el("td", {});
         if (c.flag && text) td.appendChild(el("span", { class: "tag tag-outline", text }));
         else if (text) td.appendChild(el("span", { style: c.strong ? "font-family:var(--font-heading);font-size:17px" : "", text }));
-        else td.appendChild(el("span", { class: "ad-muted-cell", text: "—" }));
+        else td.appendChild(el("span", { class: "admin-muted-cell", text: "—" }));
         return td;
       });
-      const actions = el("div", { class: "ad-actions" }, [
+      const actions = el("div", { class: "admin-actions" }, [
         el("button", { type: "button", class: "btn btn-secondary", text: "Edit" }).also((b) =>
           b.addEventListener("click", (e) => {
             e.stopPropagation();
             openGameModal(g);
           })
         ),
-        el("button", { type: "button", class: "btn btn-secondary ad-del", text: "Delete" }).also((b) =>
+        el("button", { type: "button", class: "btn btn-secondary admin-del", text: "Delete" }).also((b) =>
           b.addEventListener("click", (e) => {
             e.stopPropagation();
             openConfirm({
@@ -1485,7 +1568,7 @@ async function renderScheduleSection(container) {
       tbody.appendChild(row);
     });
 
-    bodyBox.appendChild(el("div", { class: "ad-tbl-wrap" }, [el("table", { class: "ad-tbl" }, [thead, tbody])]));
+    bodyBox.appendChild(el("div", { class: "admin-tbl-wrap" }, [el("table", { class: "admin-tbl" }, [thead, tbody])]));
   }
 
   function paintCalendar() {
@@ -1525,22 +1608,22 @@ async function renderScheduleSection(container) {
       })
     );
 
-    const grid = el("div", { class: "ad-cal-grid" });
-    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((d) => grid.appendChild(el("div", { class: "ad-cal-dow", text: d })));
+    const grid = el("div", { class: "admin-cal-grid" });
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((d) => grid.appendChild(el("div", { class: "admin-cal-dow", text: d })));
 
     const firstOfMonth = new Date(calYear, calMonth, 1);
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-    for (let i = 0; i < firstOfMonth.getDay(); i++) grid.appendChild(el("div", { class: "ad-cal-cell is-outside" }));
+    for (let i = 0; i < firstOfMonth.getDay(); i++) grid.appendChild(el("div", { class: "admin-cal-cell is-outside" }));
 
     for (let day = 1; day <= daysInMonth; day++) {
       const iso = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const cell = el("div", { class: "ad-cal-cell" }, [el("div", { class: "ad-cal-daynum", text: String(day) })]);
+      const cell = el("div", { class: "admin-cal-cell" }, [el("div", { class: "admin-cal-daynum", text: String(day) })]);
       cell.addEventListener("click", () => openGameModal(null));
       (gamesByDate[iso] || []).forEach((g) => {
         const teamName2 = teamsById[g.team_id]?.name;
         const label = [g.time || "TBA", g.home_away === "Home" ? "vs" : "at", g.opponent, teamName2 && `(${teamName2})`].filter(Boolean).join(" ");
         cell.appendChild(
-          el("button", { type: "button", class: "ad-cal-event", text: label }).also((btn) =>
+          el("button", { type: "button", class: "admin-cal-event", text: label }).also((btn) =>
             btn.addEventListener("click", (e) => {
               e.stopPropagation();
               openGameModal(g);
@@ -1551,9 +1634,9 @@ async function renderScheduleSection(container) {
       grid.appendChild(cell);
     }
 
-    bodyBox.appendChild(el("div", { class: "ad-cal-header" }, [prevBtn, el("div", { class: "ad-cal-label", text: monthLabel }), nextBtn]));
+    bodyBox.appendChild(el("div", { class: "admin-cal-header" }, [prevBtn, el("div", { class: "admin-cal-label", text: monthLabel }), nextBtn]));
     bodyBox.appendChild(grid);
-    bodyBox.appendChild(el("p", { class: "ad-help", style: "margin-top:12px", text: "Click a day to add a game on that date, or a game to edit it." }));
+    bodyBox.appendChild(el("p", { class: "admin-help", style: "margin-top:12px", text: "Click a day to add a game on that date, or a game to edit it." }));
   }
 
   function paintAll() {
@@ -1563,7 +1646,7 @@ async function renderScheduleSection(container) {
   }
 
   async function refresh() {
-    [games, teams] = await Promise.all([apiFetch(`/schedule/${encodeURIComponent(season)}`), apiFetch("/rosters")]);
+    [games, teams, locations] = await Promise.all([apiFetch(`/schedule/${encodeURIComponent(season)}`), apiFetch("/rosters"), apiFetch("/locations")]);
     paintAll();
   }
 
@@ -1591,10 +1674,10 @@ async function renderStandingsSection(container) {
   container.innerHTML = "";
   let rows = [];
 
-  const head = el("div", { class: "ad-section-head" }, [
+  const head = el("div", { class: "admin-section-head" }, [
     el("div", {}, [
       el("h1", { text: "League Standings" }),
-      el("p", { class: "ad-section-blurb", text: "Marmonte League table shown on the home page. Pulled from MaxPreps, editable by hand." }),
+      el("p", { class: "admin-section-blurb", text: "Marmonte League table shown on the home page. Pulled from MaxPreps, editable by hand." }),
     ]),
     el("button", { type: "button", class: "btn btn-primary", text: "Add school" }).also((b) => b.addEventListener("click", () => openSchoolModal(null))),
   ]);
@@ -1628,9 +1711,9 @@ async function renderStandingsSection(container) {
 
   function paintTools(cache) {
     toolsBox.innerHTML = "";
-    const sourceInput = el("input", { class: "ad-input", value: cache?.source_url || "" });
+    const sourceInput = el("input", { class: "admin-input", value: cache?.source_url || "" });
     const refreshBtn = el("button", { type: "button", class: "btn btn-secondary", text: "Refresh from source" });
-    const refreshErrorEl = el("p", { class: "ad-help", style: "color:#8c2f21" });
+    const refreshErrorEl = el("p", { class: "admin-help", style: "color:#8c2f21" });
     refreshErrorEl.hidden = true;
     const updatedText = cache?.updated_at ? `Last updated ${new Date(cache.updated_at * 1000).toLocaleString()}` : "Never refreshed yet";
 
@@ -1652,15 +1735,15 @@ async function renderStandingsSection(container) {
     });
 
     toolsBox.appendChild(
-      el("div", { class: "ad-standings-tools" }, [
-        el("div", { class: "ad-field" }, [el("label", { class: "ad-lbl", text: "Source (MaxPreps)" }), sourceInput]),
+      el("div", { class: "admin-standings-tools" }, [
+        el("div", { class: "admin-field" }, [el("label", { class: "admin-lbl", text: "Source (MaxPreps)" }), sourceInput]),
         refreshBtn,
-        el("div", { class: "ad-standings-updated", text: updatedText }),
+        el("div", { class: "admin-standings-updated", text: updatedText }),
       ])
     );
     toolsBox.appendChild(refreshErrorEl);
     toolsBox.appendChild(
-      el("p", { class: "ad-help", style: "margin:8px 0 0" }, [
+      el("p", { class: "admin-help", style: "margin:8px 0 0" }, [
         document.createTextNode("Refreshing from the source overwrites every manual edit except Link, which is never scraped."),
       ])
     );
@@ -1670,9 +1753,9 @@ async function renderStandingsSection(container) {
     tableBox.innerHTML = "";
     if (!rows.length) {
       tableBox.appendChild(
-        el("div", { class: "ad-empty" }, [
-          el("div", { class: "ad-empty-title", text: "No schools yet" }),
-          el("p", { class: "ad-empty-body", text: "Refresh from MaxPreps, or add the league's schools by hand." }),
+        el("div", { class: "admin-empty" }, [
+          el("div", { class: "admin-empty-title", text: "No schools yet" }),
+          el("p", { class: "admin-empty-body", text: "Refresh from MaxPreps, or add the league's schools by hand." }),
           el("button", { type: "button", class: "btn btn-primary", text: "Add school" }).also((b) => b.addEventListener("click", () => openSchoolModal(null))),
         ])
       );
@@ -1696,17 +1779,17 @@ async function renderStandingsSection(container) {
         const td = el("td", {});
         if (c.flag && text) td.appendChild(el("span", { class: "tag tag-outline", text }));
         else if (text) td.appendChild(el("span", { style: c.strong ? "font-family:var(--font-heading);font-size:17px" : "", text }));
-        else td.appendChild(el("span", { class: "ad-muted-cell", text: "—" }));
+        else td.appendChild(el("span", { class: "admin-muted-cell", text: "—" }));
         return td;
       });
-      const actions = el("div", { class: "ad-actions" }, [
+      const actions = el("div", { class: "admin-actions" }, [
         el("button", { type: "button", class: "btn btn-secondary", text: "Edit" }).also((b) =>
           b.addEventListener("click", (e) => {
             e.stopPropagation();
             openSchoolModal(row);
           })
         ),
-        el("button", { type: "button", class: "btn btn-secondary ad-del", text: "Delete" }).also((b) =>
+        el("button", { type: "button", class: "btn btn-secondary admin-del", text: "Delete" }).also((b) =>
           b.addEventListener("click", (e) => {
             e.stopPropagation();
             openConfirm({
@@ -1726,7 +1809,7 @@ async function renderStandingsSection(container) {
       tbody.appendChild(tr);
     });
 
-    tableBox.appendChild(el("div", { class: "ad-tbl-wrap" }, [el("table", { class: "ad-tbl" }, [thead, tbody])]));
+    tableBox.appendChild(el("div", { class: "admin-tbl-wrap" }, [el("table", { class: "admin-tbl" }, [thead, tbody])]));
   }
 
   function paint(cache) {
@@ -1760,8 +1843,8 @@ async function renderAlbumsSection(container, driveTo) {
 
 /* ============================== Dashboard =============================== */
 
-const NAV_GROUPS = ["Content", "Teams", "Season"];
-const SECTION_ORDER = ["content-blocks", "news", "photos", "rosters", "coaches", "contacts", "schedule", "sponsors", "standings"];
+const NAV_GROUPS = ["Content", "Teams", "Season", "Administration"];
+const SECTION_ORDER = ["content-blocks", "news", "photos", "rosters", "coaches", "contacts", "schedule", "sponsors", "standings", "locations", "users"];
 const SECTION_LABELS = {
   "content-blocks": { label: "Content Blocks", group: "Content" },
   news: { label: "News", group: "Content" },
@@ -1772,28 +1855,70 @@ const SECTION_LABELS = {
   schedule: { label: "Schedule", group: "Season" },
   sponsors: { label: "Sponsors", group: "Season" },
   standings: { label: "League Standings", group: "Season" },
+  locations: { label: "Locations", group: "Season" },
+  users: { label: "Users", group: "Administration" },
+};
+
+// Which permission (from Users) unlocks each section's nav tab. Admin
+// unlocks everything regardless of this map - see hasSectionAccess().
+const SECTION_PERMISSION = {
+  "content-blocks": "Edit Content",
+  news: "Edit Content",
+  photos: "Edit Content",
+  rosters: "Edit Rosters",
+  coaches: "Edit Rosters",
+  contacts: "Edit Contacts",
+  schedule: "Edit Season",
+  sponsors: "Edit Contacts",
+  standings: "Edit Season",
+  locations: "Edit Season",
+  users: "Admin",
 };
 
 function initDashboard() {
-  const navGroups = document.getElementById("ad-nav-groups");
+  const navGroups = document.getElementById("admin-nav-groups");
   const container = document.getElementById("section-container");
   let currentSection = "content-blocks";
   let drill = null; // { kind: 'players', team } | { kind: 'photos', album }
+  // Grandfathers in as full access until the /users self-lookup resolves,
+  // and again if it fails for any reason - matches the backend's own
+  // "missing permissions attribute = implicit Admin" grandfather rule.
+  let myPermissions = new Set(["Admin"]);
+
+  function hasSectionAccess(key) {
+    return myPermissions.has("Admin") || myPermissions.has(SECTION_PERMISSION[key]);
+  }
+
+  async function loadMyPermissions() {
+    const email = getCurrentEmail();
+    if (!email) return;
+    try {
+      const me = await apiFetch(`/users/${encodeURIComponent(email)}`);
+      myPermissions = new Set(me.permissions == null ? ["Admin"] : me.permissions);
+    } catch (e) {
+      // Leave the Admin grandfather in place - a lookup failure shouldn't
+      // strand a legitimate admin outside their own dashboard.
+    }
+    if (!SECTION_ORDER.filter(hasSectionAccess).includes(currentSection)) {
+      currentSection = SECTION_ORDER.find(hasSectionAccess) || currentSection;
+    }
+  }
 
   function renderNav() {
     navGroups.innerHTML = "";
     NAV_GROUPS.forEach((group) => {
-      const keys = SECTION_ORDER.filter((k) => SECTION_LABELS[k].group === group);
+      const keys = SECTION_ORDER.filter((k) => SECTION_LABELS[k].group === group && hasSectionAccess(k));
+      if (!keys.length) return;
       const tabs = el(
         "div",
-        { class: "ad-nav-group-tabs" },
+        { class: "admin-nav-group-tabs" },
         keys.map((key) =>
-          el("button", { type: "button", class: "ad-tab" + (currentSection === key && !drill ? " is-on" : ""), text: SECTION_LABELS[key].label }).also((b) =>
+          el("button", { type: "button", class: "admin-tab" + (currentSection === key && !drill ? " is-on" : ""), text: SECTION_LABELS[key].label }).also((b) =>
             b.addEventListener("click", () => activate(key))
           )
         )
       );
-      navGroups.appendChild(el("div", {}, [el("div", { class: "ad-nav-group-label", text: group }), tabs]));
+      navGroups.appendChild(el("div", {}, [el("div", { class: "admin-nav-group-label", text: group }), tabs]));
     });
   }
 
@@ -1821,9 +1946,12 @@ function initDashboard() {
     else if (currentSection === "schedule") renderScheduleSection(container);
     else if (currentSection === "sponsors") renderGenericSection(container, sponsorsMeta(), {});
     else if (currentSection === "standings") renderStandingsSection(container);
+    else if (currentSection === "locations") renderGenericSection(container, locationsMeta(), {});
+    else if (currentSection === "users") renderGenericSection(container, usersMeta(), {});
   }
 
   function activate(key) {
+    if (!hasSectionAccess(key)) return;
     currentSection = key;
     drill = null;
     renderNav();
@@ -1832,4 +1960,8 @@ function initDashboard() {
 
   renderNav();
   renderSection();
+  loadMyPermissions().then(() => {
+    renderNav();
+    renderSection();
+  });
 }

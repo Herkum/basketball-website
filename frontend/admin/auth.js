@@ -22,6 +22,27 @@ function getIdToken() {
   return sessionStorage.getItem("id_token");
 }
 
+// Cognito id_tokens carry `email` as a standard claim - decoded client-side
+// (never verified here, the API's JWT authorizer is what actually enforces
+// the token) purely so the admin UI knows which Users row is "me", to hide
+// nav sections the signed-in user lacks permission for.
+function getCurrentEmail() {
+  const token = getIdToken();
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(payload)
+        .split("")
+        .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+        .join("")
+    );
+    return (JSON.parse(json).email || "").toLowerCase() || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 function isLoggedIn() {
   const expiresAt = Number(sessionStorage.getItem("expires_at") || 0);
   return !!getIdToken() && Date.now() < expiresAt;
@@ -109,9 +130,16 @@ async function apiFetch(path, options = {}) {
     },
   });
 
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     logout();
     throw new Error("Not authorized");
+  }
+
+  if (response.status === 403) {
+    // Session is still valid - the signed-in user just lacks the
+    // permission this action needs, so surface it instead of logging out.
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || "You don't have permission to do that.");
   }
 
   if (response.status === 204) return null;

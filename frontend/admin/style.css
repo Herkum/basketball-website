@@ -125,7 +125,7 @@ a:hover {
   background: color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
-.ad-del:hover {
+.admin-del:hover {
   border-color: #8c2f21;
   color: #8c2f21;
   background: color-mix(in srgb, #8c2f21 7%, transparent);
@@ -133,12 +133,12 @@ a:hover {
 
 /* ---------- Header + nav ---------- */
 
-.ad-header {
+.admin-header {
   border-bottom: 1px solid var(--color-text);
   padding: 20px 28px 18px;
 }
 
-.ad-header-inner {
+.admin-header-inner {
   max-width: 1280px;
   margin: 0 auto;
   display: flex;
@@ -148,31 +148,31 @@ a:hover {
   flex-wrap: wrap;
 }
 
-.ad-brand {
+.admin-brand {
   display: flex;
   align-items: baseline;
   gap: 12px;
 }
 
-.ad-brand-name {
+.admin-brand-name {
   font-family: var(--font-heading);
   font-size: 30px;
   letter-spacing: -0.01em;
 }
 
-.ad-brand-tag {
+.admin-brand-tag {
   font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 
-.ad-nav {
+.admin-nav {
   border-bottom: 1px solid var(--color-divider);
   padding: 14px 28px;
 }
 
-.ad-nav-inner {
+.admin-nav-inner {
   max-width: 1280px;
   margin: 0 auto;
   display: flex;
@@ -180,7 +180,7 @@ a:hover {
   gap: 26px;
 }
 
-.ad-nav-group-label {
+.admin-nav-group-label {
   font-size: 9.5px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -188,13 +188,13 @@ a:hover {
   margin-bottom: 7px;
 }
 
-.ad-nav-group-tabs {
+.admin-nav-group-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
 }
 
-.ad-tab {
+.admin-tab {
   font-family: var(--font-heading);
   font-size: 15px;
   padding: 6px 12px;
@@ -204,16 +204,16 @@ a:hover {
   color: var(--color-text);
   cursor: pointer;
 }
-.ad-tab:hover {
+.admin-tab:hover {
   border-color: var(--color-accent);
   color: var(--color-accent-700);
 }
-.ad-tab.is-on {
+.admin-tab.is-on {
   border-color: var(--color-text);
   background: var(--color-neutral-900);
   color: var(--color-bg);
 }
-.ad-tab-count {
+.admin-tab-count {
   font-variant-numeric: tabular-nums;
   opacity: 0.55;
   font-size: 12.5px;
@@ -227,7 +227,7 @@ main {
 
 /* ---------- Section header ---------- */
 
-.ad-section-head {
+.admin-section-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -236,14 +236,14 @@ main {
   margin-bottom: 6px;
 }
 
-.ad-section-head h1 {
+.admin-section-head h1 {
   font-family: var(--font-heading);
   font-size: 38px;
   font-weight: 400;
   margin: 0;
 }
 
-.ad-section-blurb {
+.admin-section-blurb {
   margin: 6px 0 0;
   max-width: 56ch;
   font-size: 13.5px;
@@ -252,7 +252,7 @@ main {
 
 /* ---------- List toolbar ---------- */
 
-.ad-toolbar {
+.admin-toolbar {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -260,20 +260,20 @@ main {
   margin: 22px 0 14px;
 }
 
-.ad-toolbar .ad-count {
+.admin-toolbar .admin-count {
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 
-.ad-toolbar .ad-hint {
+.admin-toolbar .admin-hint {
   flex: 1;
   text-align: right;
   font-size: 12px;
   color: color-mix(in srgb, var(--color-text) 45%, transparent);
 }
 
-.ad-tools-row {
+.admin-tools-row {
   display: flex;
   align-items: center;
   gap: 22px;
@@ -281,13 +281,13 @@ main {
   margin: 0 0 16px;
 }
 
-.ad-tools-group {
+.admin-tools-group {
   display: flex;
   align-items: center;
   gap: 9px;
 }
 
-.ad-tools-label {
+.admin-tools-label {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -296,7 +296,7 @@ main {
 
 /* ---------- Inputs ---------- */
 
-.ad-input {
+.admin-input {
   width: 100%;
   box-sizing: border-box;
   font-family: var(--font-body);
@@ -307,17 +307,17 @@ main {
   background: var(--color-bg);
   color: var(--color-text);
 }
-.ad-input:focus-visible {
+.admin-input:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
   border-color: var(--color-accent);
 }
 
-.ad-search {
+.admin-search {
   max-width: 280px;
 }
 
-.ad-lbl {
+.admin-lbl {
   display: block;
   font-family: var(--font-heading);
   font-size: 12px;
@@ -327,25 +327,25 @@ main {
   margin-bottom: 5px;
 }
 
-.ad-req {
+.admin-req {
   color: var(--color-accent-700);
 }
 
-.ad-help {
+.admin-help {
   font-size: 12px;
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
   margin-top: 4px;
 }
 
-.ad-field {
+.admin-field {
   margin-bottom: 0;
 }
 
-.ad-field-span-2 {
+.admin-field-span-2 {
   grid-column: 1 / -1;
 }
 
-.ad-checkbox-row {
+.admin-checkbox-row {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -353,13 +353,13 @@ main {
   cursor: pointer;
 }
 
-.ad-multi-row {
+.admin-multi-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 18px;
 }
 
-.ad-multi-row label {
+.admin-multi-row label {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -369,17 +369,17 @@ main {
 
 /* ---------- Table ---------- */
 
-.ad-tbl-wrap {
+.admin-tbl-wrap {
   overflow-x: auto;
   max-width: 100%;
 }
 
-.ad-tbl {
+.admin-tbl {
   width: 100%;
   border-collapse: collapse;
 }
 
-.ad-tbl th {
+.admin-tbl th {
   font-family: var(--font-heading);
   font-weight: 600;
   font-size: 11.5px;
@@ -390,35 +390,35 @@ main {
   border-bottom: 1px solid var(--color-text);
   white-space: nowrap;
 }
-.ad-tbl th:first-child,
-.ad-tbl td:first-child {
+.admin-tbl th:first-child,
+.admin-tbl td:first-child {
   padding-left: 0;
 }
-.ad-tbl th:last-child,
-.ad-tbl td:last-child {
+.admin-tbl th:last-child,
+.admin-tbl td:last-child {
   padding-right: 0;
   text-align: right;
 }
-.ad-tbl td {
+.admin-tbl td {
   padding: 11px 12px;
   border-bottom: 1px solid var(--color-divider);
   font-size: 14px;
   vertical-align: middle;
 }
-.ad-tbl tbody tr:hover td {
+.admin-tbl tbody tr:hover td {
   background: var(--color-accent-100);
 }
-.ad-tbl tbody tr {
+.admin-tbl tbody tr {
   cursor: pointer;
 }
-.ad-tbl tbody tr.dragging {
+.admin-tbl tbody tr.dragging {
   opacity: 0.4;
 }
-.ad-tbl tbody tr.drag-over td {
+.admin-tbl tbody tr.drag-over td {
   box-shadow: inset 0 2px 0 0 var(--color-text);
 }
 
-.ad-sort {
+.admin-sort {
   all: unset;
   cursor: pointer;
   font: inherit;
@@ -426,32 +426,32 @@ main {
   text-transform: inherit;
   color: inherit;
 }
-.ad-sort:hover {
+.admin-sort:hover {
   color: var(--color-accent-700);
 }
 
-.ad-num {
+.admin-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.ad-drag {
+.admin-drag {
   cursor: grab;
   color: color-mix(in srgb, var(--color-text) 35%, transparent);
   font-size: 15px;
   user-select: none;
 }
 
-.ad-strong {
+.admin-strong {
   font-family: var(--font-heading);
   font-size: 17px;
 }
 
-.ad-muted-cell {
+.admin-muted-cell {
   color: color-mix(in srgb, var(--color-text) 38%, transparent);
 }
 
-.ad-plate-thumb {
+.admin-plate-thumb {
   display: block;
   width: 52px;
   height: 40px;
@@ -475,7 +475,7 @@ main {
   color: color-mix(in srgb, var(--color-text) 75%, transparent);
 }
 
-.ad-actions {
+.admin-actions {
   display: flex;
   gap: 7px;
   justify-content: flex-end;
@@ -483,18 +483,18 @@ main {
 
 /* ---------- Empty state ---------- */
 
-.ad-empty {
+.admin-empty {
   border: 1px solid var(--color-divider);
   border-top: 0;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   padding: 44px 24px;
   text-align: center;
 }
-.ad-empty-title {
+.admin-empty-title {
   font-family: var(--font-heading);
   font-size: 21px;
 }
-.ad-empty-body {
+.admin-empty-body {
   margin: 6px 0 14px;
   font-size: 13.5px;
   color: color-mix(in srgb, var(--color-text) 62%, transparent);
@@ -502,7 +502,7 @@ main {
 
 /* ---------- Standings tools box ---------- */
 
-.ad-standings-tools {
+.admin-standings-tools {
   display: flex;
   align-items: flex-end;
   gap: 14px;
@@ -512,11 +512,11 @@ main {
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-md);
 }
-.ad-standings-tools .ad-field {
+.admin-standings-tools .admin-field {
   flex: 1;
   min-width: 260px;
 }
-.ad-standings-updated {
+.admin-standings-updated {
   font-size: 12.5px;
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
   padding-bottom: 9px;
@@ -524,28 +524,28 @@ main {
 
 /* ---------- Calendar ---------- */
 
-.ad-cal-header {
+.admin-cal-header {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 18px;
   margin: 4px 0 14px;
 }
-.ad-cal-header .ad-cal-label {
+.admin-cal-header .admin-cal-label {
   font-family: var(--font-heading);
   font-size: 24px;
   min-width: 220px;
   text-align: center;
 }
 
-.ad-cal-grid {
+.admin-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   border-top: 1px solid var(--color-text);
   border-left: 1px solid var(--color-divider);
 }
 
-.ad-cal-dow {
+.admin-cal-dow {
   padding: 7px 9px;
   border-right: 1px solid var(--color-divider);
   border-bottom: 1px solid var(--color-divider);
@@ -556,7 +556,7 @@ main {
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
 
-.ad-cal-cell {
+.admin-cal-cell {
   min-height: 104px;
   padding: 7px 8px;
   border-right: 1px solid var(--color-divider);
@@ -566,19 +566,19 @@ main {
   flex-direction: column;
   gap: 5px;
 }
-.ad-cal-cell.is-outside {
+.admin-cal-cell.is-outside {
   background: color-mix(in srgb, var(--color-text) 3%, transparent);
 }
 
-.ad-cal-daynum {
+.admin-cal-daynum {
   font-size: 12px;
   color: color-mix(in srgb, var(--color-text) 70%, transparent);
 }
-.ad-cal-cell.is-outside .ad-cal-daynum {
+.admin-cal-cell.is-outside .admin-cal-daynum {
   color: color-mix(in srgb, var(--color-text) 30%, transparent);
 }
 
-.ad-cal-event {
+.admin-cal-event {
   all: unset;
   cursor: pointer;
   display: block;
@@ -614,7 +614,7 @@ main {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   padding: 24px 28px;
-  animation: ad-rise 0.16s ease;
+  animation: admin-rise 0.16s ease;
 }
 
 .dialog-head {
@@ -655,14 +655,14 @@ main {
   padding-top: 18px;
   border-top: 1px solid var(--color-divider);
 }
-.dialog-actions .ad-footnote {
+.dialog-actions .admin-footnote {
   flex: 1;
   text-align: right;
   font-size: 12px;
   color: color-mix(in srgb, var(--color-text) 45%, transparent);
 }
 
-@keyframes ad-rise {
+@keyframes admin-rise {
   from {
     opacity: 0;
     transform: translateY(6px);
@@ -675,7 +675,7 @@ main {
 
 /* File / image field */
 
-.ad-file-drop {
+.admin-file-drop {
   display: flex;
   align-items: center;
   gap: 14px;
@@ -684,7 +684,7 @@ main {
   padding: 12px 14px;
 }
 
-.ad-file-thumb {
+.admin-file-thumb {
   display: block;
   flex: none;
   background: var(--color-neutral-300);
@@ -696,11 +696,11 @@ main {
   outline: 1px solid var(--color-divider);
 }
 
-.ad-file-name {
+.admin-file-name {
   font-size: 13.5px;
 }
 
-.ad-file-buttons {
+.admin-file-buttons {
   display: flex;
   gap: 8px;
   margin-top: 7px;
@@ -709,7 +709,7 @@ main {
 
 /* Crop dialog */
 
-.ad-crop-frame {
+.admin-crop-frame {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-sm);
@@ -718,31 +718,31 @@ main {
   touch-action: none;
   user-select: none;
 }
-.ad-crop-frame:active {
+.admin-crop-frame:active {
   cursor: grabbing;
 }
-.ad-crop-frame img {
+.admin-crop-frame img {
   position: absolute;
   max-width: none;
   pointer-events: none;
 }
-.ad-crop-window {
+.admin-crop-window {
   position: absolute;
   pointer-events: none;
   box-shadow: 0 0 0 9999px color-mix(in srgb, var(--color-neutral-900) 55%, transparent);
   outline: 1px solid var(--color-bg);
 }
-.ad-crop-zoom-row {
+.admin-crop-zoom-row {
   display: flex;
   align-items: center;
   gap: 14px;
   margin-top: 16px;
 }
-.ad-crop-zoom-row input[type="range"] {
+.admin-crop-zoom-row input[type="range"] {
   flex: 1;
   accent-color: var(--color-accent);
 }
-.ad-crop-zoom-label {
+.admin-crop-zoom-label {
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
@@ -752,13 +752,13 @@ main {
 
 /* ---------- Toast ---------- */
 
-.ad-toast {
+.admin-toast {
   position: fixed;
   left: 50%;
   bottom: 26px;
   transform: translateX(-50%);
   z-index: 60;
-  animation: ad-rise 0.18s ease;
+  animation: admin-rise 0.18s ease;
   background: var(--color-neutral-900);
   color: var(--color-bg);
   border-radius: var(--radius-md);
@@ -770,13 +770,13 @@ main {
 /* Photos-panel image grid (photo-level, inside an album) keeps its own
    lighter-weight card layout since it's captions + delete, not a full
    metadata table. */
-.ad-photo-grid {
+.admin-photo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 1rem;
   margin: 1rem 0;
 }
-.ad-photo-cell {
+.admin-photo-cell {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -784,17 +784,17 @@ main {
   border: 1px solid var(--color-divider);
   border-radius: var(--radius-md);
 }
-.ad-photo-cell img {
+.admin-photo-cell img {
   width: 100%;
   height: 120px;
   object-fit: cover;
   border-radius: var(--radius-sm);
   filter: sepia(0.22) saturate(0.82) contrast(1.05);
 }
-.ad-photo-cell.dragging {
+.admin-photo-cell.dragging {
   opacity: 0.4;
 }
-.ad-photo-cell.drag-over {
+.admin-photo-cell.drag-over {
   box-shadow: inset 0 0 0 2px var(--color-text);
 }
 
@@ -802,7 +802,7 @@ main {
   .dialog-body {
     grid-template-columns: 1fr;
   }
-  .ad-field-span-2 {
+  .admin-field-span-2 {
     grid-column: auto;
   }
 }

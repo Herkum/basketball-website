@@ -208,6 +208,11 @@ a {
   margin-top:     0.2rem;
 }
 
+.record-box-label {
+  margin: 0 1.5rem 0.35rem;
+  text-align: center;
+}
+
 .record-box {
   display: flex;
   border: 1px solid var(--border);
@@ -286,9 +291,8 @@ a {
 }
 
 .site-nav a.sub-link {
-  padding-left: 2rem;
+  padding-left: 1.5rem;
   font-size:    1rem;
-  color:        var(--color-grey-dk);
 }
 
 .site-nav a.sub-link:hover {
@@ -297,6 +301,21 @@ a {
 
 .site-nav a.sub-link.active {
   color: var(--color-brown);
+}
+
+/* Rosters' per-team links nest one level deeper than a group's regular
+   sub-links (Group > Rosters > Team), so they get extra indent on top of
+   .sub-link's own. */
+.site-nav a.sub-link--team {
+  padding-left: 2rem;
+}
+
+.nav-group-label {
+  padding: 0.25rem 0.75rem 0.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* Auto left/right margins here used to make main a flex item with
@@ -319,14 +338,13 @@ main {
 /* Home page only (see the .home-page class on index.html's <body>) -
    #page-title is shared markup across every page, so this can't just be
    an #page-title rule without affecting every other page's header too. */
-body.home-page #page-title {
+#page-title {
   padding-left: 1rem;
 }
 
 .page-intro {
   color: var(--muted);
   margin-bottom: 2rem;
-  max-width: 60ch;
   text-align: justify;
   /* Every "body" field across the CMS (Content Blocks, News, Coach
      profiles, etc.) is plain text rendered via textContent, not HTML -
@@ -342,6 +360,229 @@ body.home-page #page-title {
    Statement's own body, news excerpts). */
 .rich-text {
   white-space: pre-line;
+}
+
+/* Modifier for .rich-text containers whose body is rendered as real HTML
+   (innerHTML) rather than plain text - see initMissionPage/
+   initHtmlBlockPage in site.js. .rich-text's own pre-line is meant to
+   preserve line breaks typed into a plain textarea; applied to actual
+   HTML source it would also preserve incidental whitespace between tags
+   as visible gaps, so this resets it back to normal and lets the markup
+   itself (headings, <ul>/<li>, etc.) dictate spacing instead. */
+.rich-text-html {
+  white-space: normal;
+}
+
+.rich-text-html h2,
+.rich-text-html h3 {
+  margin: 1.25rem 0 0.5rem;
+}
+
+.rich-text-html h2:first-child,
+.rich-text-html h3:first-child {
+  margin-top: 0;
+}
+
+.rich-text-html ul,
+.rich-text-html ol {
+  margin: 0 0 1rem;
+  padding-left: 1.4rem;
+}
+
+.rich-text-html li {
+  margin: 0.2rem 0;
+}
+
+/* Mission Statement page - three "pillar" columns (Coaches/Players/Us)
+   instead of the plain stacked h2/ul list .rich-text-html gives every
+   other HTML block by default. Scoped under .rich-text-html so it only
+   ever applies to markup that opts in with the mission-* classes below,
+   not to Store/Sponsorships/Donate's own arbitrary HTML. */
+.rich-text-html .mission-intro {
+  font-size: 1.2rem;
+  max-width: 640px;
+  margin: 0 0 2rem;
+  text-align: justify;
+}
+
+.rich-text-html .mission-standard-label {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.rich-text-html .mission-pillars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2rem 2.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rich-text-html .mission-pillar {
+  border-top: 2px solid var(--color-accent);
+  padding-top: 1rem;
+}
+
+.rich-text-html .mission-pillar h2 {
+  margin: 0 0 0.85rem;
+  font-size: 1.6rem;
+}
+
+.rich-text-html .mission-pillar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rich-text-html .mission-pillar li {
+  position: relative;
+  padding-left: 1.15rem;
+  margin: 0.55rem 0;
+  font-size: 0.95rem;
+}
+
+.rich-text-html .mission-pillar li::before {
+  content: "\2014";
+  position: absolute;
+  left: 0;
+  color: var(--color-accent);
+}
+
+.rich-text-html .mission-closing {
+  margin: 2.5rem 0 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-heading);
+  font-size: 1.4rem;
+  font-weight: 500;
+  text-align: center;
+  letter-spacing: 0.02em;
+  color: var(--color-accent-700);
+}
+
+@media (max-width: 640px) {
+  .rich-text-html .mission-pillars {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+}
+
+/* Sponsorships page - a letterhead/letter, a mailed-check address card, a
+   row of payment-method options, and a grid of sponsorship tier cards.
+   Scoped under .rich-text-html like the mission-* classes above, so it
+   only applies to markup that opts in. */
+.rich-text-html .sponsor-masthead {
+  margin: 0 0 2rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.rich-text-html .sponsor-tagline {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: 1.3rem;
+  letter-spacing: 0.03em;
+  color: var(--color-accent-700);
+  margin-bottom: 0.25rem;
+}
+
+.rich-text-html .sponsor-masthead h2 {
+  margin: 0;
+  font-size: 1.9rem;
+}
+
+.rich-text-html .sponsor-letter p {
+  max-width: 680px;
+  text-align: justify;
+  margin: 0 0 1rem;
+}
+
+.rich-text-html .sponsor-mail {
+  margin: 1.5rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  max-width: 420px;
+}
+
+.rich-text-html .sponsor-mail p {
+  margin: 0 0 0.35rem;
+}
+
+.rich-text-html .sponsor-mail p:last-child {
+  margin-bottom: 0;
+}
+
+.rich-text-html .sponsor-payment-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.25rem;
+  margin: 1.5rem 0 2.5rem;
+}
+
+.rich-text-html .sponsor-payment-option {
+  border-top: 2px solid var(--color-accent);
+  padding-top: 0.6rem;
+}
+
+.rich-text-html .sponsor-payment-option h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+
+.rich-text-html .sponsor-payment-option p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.rich-text-html .sponsor-tiers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.75rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rich-text-html .sponsor-tier {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+}
+
+.rich-text-html .sponsor-tier h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.3rem;
+}
+
+.rich-text-html .sponsor-tier-price {
+  display: block;
+  font-family: var(--font-heading);
+  color: var(--color-accent-700);
+  font-size: 1.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.rich-text-html .sponsor-tier ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rich-text-html .sponsor-tier li {
+  position: relative;
+  padding-left: 1.15rem;
+  margin: 0.5rem 0;
+  font-size: 0.92rem;
+}
+
+.rich-text-html .sponsor-tier li::before {
+  content: "\2014";
+  position: absolute;
+  left: 0;
+  color: var(--color-accent);
 }
 
 h1, h2, h3, .site-title {
@@ -419,7 +660,6 @@ h4 {
 
 p {
   text-align: justify;
-  max-width: 70ch;
 }
 
 p.sponsors > a {
@@ -436,8 +676,8 @@ p.sponsors > a:hover {
 
 .eyebrow {
   display: block;
-  font-size: 0.65rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-accent-700);
@@ -1007,6 +1247,80 @@ tbody tr:hover {
   margin: 0.1rem 0 0.5rem;
 }
 
+/* Photo carousel shown at the end of a News/Event article when it has an
+   Album linked via `linked.ref === "news:<post_id>"` (see
+   fetchNewsPhotoIndex in site.js) - a horizontally-scrolling strip of
+   small thumbnails, not one image stretched to the article's width.
+   Selectors are compound (two classes) so they beat ".news-post img"/
+   ".coach-modal img"-style descendant rules already in this file at
+   equal-or-lower specificity, regardless of source order, wherever the
+   carousel happens to be nested. */
+.photo-carousel {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.photo-carousel .photo-carousel-thumb {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  flex-shrink: 0;
+  cursor: zoom-in;
+}
+
+/* Full-size photo popup (openPhotoModal in site.js) - same modal chrome
+   as .news-modal/.coach-modal, but the caption is the modal's own <h2>
+   title rather than a generic label. */
+.photo-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-black, #000) 55%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 110;
+}
+
+.photo-modal {
+  position: relative;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 2rem;
+  max-width: 44rem;
+  width: 100%;
+}
+
+.photo-modal .photo-modal-img {
+  display: block;
+  width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+}
+
+.photo-modal-caption {
+  margin: 1rem 0 0;
+  text-align: center;
+}
+
+.photo-modal-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+}
+
 .teaser-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -1033,16 +1347,10 @@ tbody tr:hover {
 }
 
 .stat-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-}
-
-@media (min-width: 721px) {
-  .stat-row {
-    grid-template-columns: 0.8fr 0.8fr 1.4fr;
-  }
 }
 
 .stat-row > span.eyebrow {
@@ -1050,11 +1358,21 @@ tbody tr:hover {
 }
 
 .stat-col {
+  flex: 1 1 200px;
   padding: 1.1rem 1.25rem;
   border-right: 1px solid var(--border);
 }
 
-.stat-col > a {
+/* Wider weighting for the Upcoming column (a short list, not one stat) -
+   flex-grow (not a fixed grid column) so it still gets the extra share
+   of the row's width even when Last Result/Next Game aren't rendered
+   (e.g. a team with no games played yet) and there are only 1-2 columns
+   instead of the usual 3. */
+.stat-col--wide {
+  flex-grow: 1.75;
+}
+
+.stat-col > a.stat-list-link {
   padding: 1rem 0 0;
 }
 
@@ -1063,15 +1381,18 @@ tbody tr:hover {
 }
 
 .stat-value {
+  display: block;
   font-family: var(--font-heading);
   font-size: 1.5rem;
-  font-weight: 500;
-  line-height: 1.1;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+a.stat-value:hover {
+  text-decoration: underline;
 }
 
 .stat-meta {
-  color: var(--muted);
-  font-size: 0.85rem;
   margin: 0.35rem 0 0;
 }
 

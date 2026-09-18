@@ -13,21 +13,33 @@
   for a given team, not its own top-level tab.
 - `Schedule` (PK `season`, SK `game_id`): `date`, `time` (free text, not
   `type="time"` — schedules routinely say "TBA"), `opponent`, `home_away`,
-  `location` (free text, human-readable venue name/description, e.g. "Oaks
-  Christian HS" — this is the text shown to the public, not itself
-  resolvable by Maps), `address` (free text street address; used to build
-  the Google Maps search link — `mapsUrl()`/
-  `https://www.google.com/maps/search/?api=1&query=...` — no geocoding, so
-  it only needs to be something Maps can resolve, not precise lat/long;
-  the public schedule links `location` as the display text with `address`
-  as the href, falling back to plain text if `address` is blank).
-  `location`/`address` only appear in the admin's edit dialog for Away
-  games (Home is always the same gym, so re-entering it every time would
-  be pointless data entry) — both fields carry `visibleIf: (f) =>
-  f.home_away === "Away"` in the field metadata (`renderScheduleSection`'s
-  `fields()` in `app.js`), but their stored values are hidden, not
-  cleared, so a Home game's already-backfilled `address` is preserved
-  across edits. `team_id` (which roster this game belongs to, a `<select>`
+  `location_id` (which `Locations` row the admin picked — see `Locations`
+  below), `location`/`address` (a denormalized copy of that row's `name`/
+  `address`, written by `renderScheduleSection`'s `openGameModal` at save
+  time). The denormalized copy exists as a fallback, not the source of
+  truth: both the admin's List view (`gameLocationText()`/
+  `gameAddressText()` in `app.js`) and the public schedule
+  (`gameLocation()` in `site.js`) resolve `location_id` against a live
+  `/locations` fetch first and only fall back to the stored `location`/
+  `address` text when there's no match (a deleted Location, or a game that
+  predates `location_id`/is unmapped, e.g. the "San Gabriel Tournament"
+  games — see `scripts/seed_locations.py`) — this is what makes renaming a
+  Location in the admin UI instantly update every game already linked to
+  it, everywhere it's displayed, with no re-save needed. `address` (via
+  either path) is used to build the Google Maps search link —
+  `mapsUrl()`/`https://www.google.com/maps/search/?api=1&query=...` — no
+  geocoding, so it only needs to be something Maps can resolve, not precise
+  lat/long; the public schedule links the resolved name as the display text
+  with the resolved address as the href, falling back to plain text if
+  there's no address. `location_id`/`location`/`address` only appear in the
+  admin's edit dialog for Away games (Home is always the same gym, so
+  re-entering it every time would be pointless data entry) — the field
+  carries `visibleIf: (f) => f.home_away === "Away"` in the field metadata
+  (`renderScheduleSection`'s `fields()` in `app.js`), but the stored values
+  are hidden, not cleared, so a Home game's already-backfilled `address` is
+  preserved across edits. There is no free-text override on this dropdown —
+  a game with no confirmed venue needs a `Locations` row added first (or
+  left blank). `team_id` (which roster this game belongs to, a `<select>`
   populated from `/rosters`), `is_league` (boolean checkbox, "League Game"
   — not every opponent counts against the league record shown in the
   public sidebar's record box; tournaments and non-league games leave
@@ -70,12 +82,16 @@
   combined feed (`activeEvents` ascending, `activeArticles` descending,
   concatenated so the nearest event or else the latest news leads).
 - `ContentBlocks` (PK `block_id`): `title`, `body` (textarea), `image`
-  (cropped photo), `special` (boolean checkbox — flags a block as excluded
-  from the public site's sidebar nav, see "Content Blocks → page mapping"
-  above), `generator` (dropdown: None/Coaches/Rosters/Schedule/News/Contact
-  Us/Sponsors/Photos/Standings/Logo/Mission Statement — which dedicated public page this
-  block drives, see same section; "Logo" doesn't drive a page, it's the
-  sidebar's brand block, see "Sidebar brand/record/footer" above),
+  (cropped photo), `special` (boolean checkbox — shown in the admin as a
+  search-engine NoIndex hint; no longer controls sidebar inclusion, see
+  "Public site layout" in architecture.md), `generator` (dropdown —
+  `CONTENT_BLOCK_GENERATORS` in `admin/app.js`: None/Coaches/Rosters/
+  Schedule/News/Contact Us/Sponsors/Photos/Standings/Logo/Mission
+  Statement/Store/Sponsorships/Donate — which dedicated public page this
+  block drives, see "Content Blocks → page mapping" in architecture.md;
+  "Logo" doesn't drive a page, it's the sidebar's brand block, see
+  "Sidebar brand/record/footer" above; Store/Sponsorships/Donate render
+  `body` as raw HTML rather than plain intro text, see same section),
   `league_name` (free text, admin form shows this field only when
   Generator is "Logo" — the league name shown in the sidebar footer and
   atop the Home page's standings teaser),
@@ -97,12 +113,16 @@
   the public page), `label` (free text, e.g. "General Info"), `role` (free
   text sub-label, e.g. "Head Coach, Varsity" — shown under the label in
   place of `type` when set), `type` (one of `Email`/`Physical Address`/
-  `Instagram`/`Phone` — see `CONTACT_TYPES` in `app.js`; it's a fixed
-  `<select>`, not free text, so adding a new contact type means updating
-  that array; `Phone` renders as a `tel:` link, stripping everything but
-  leading `+` and digits from `value` for the href), `value` (free-text
-  textarea — holds an email, a full mailing address, an @handle, or a
-  phone number depending on `type`), `order` (drag-to-reorder, same
+  `Instagram`/`Phone`/`Website` — see `CONTACT_TYPES` in `app.js`; it's a
+  fixed `<select>`, not free text, so adding a new contact type means
+  updating that array *and* `contactValueNode()` in `site.js`, which
+  switches on `type` to decide how `value` renders/links; `Phone` renders
+  as a `tel:` link, stripping everything but leading `+` and digits from
+  `value` for the href; `Website` renders as a plain external link,
+  prefixing `value` with `https://` if it wasn't entered with a scheme
+  already), `value` (free-text textarea — holds an email, a full mailing
+  address, an @handle, a phone number, or a URL depending on `type`),
+  `order` (drag-to-reorder, same
   pattern as Coaches). `renderContactsSection` in `app.js`. The public
   Contact page (`initContactPage` in `site.js`) pulls the `Physical
   Address` contact out of the flat list into its own "gym" section
@@ -124,7 +144,10 @@
   of the old free-text Content Block body.
 - `Albums` (PK `album_id`): `title`, `date_label` (free text — a month or
   a date range, e.g. "November" or "Dec 20–22", not a real date type since
-  events don't cleanly fit one), `order` (drag-to-reorder), `linked`
+  events don't cleanly fit one), `description` (free-text textarea — a
+  short paragraph about the album, shown on the public Photos page under
+  its title/date label, same `page-intro` treatment as every other
+  section's intro text), `order` (drag-to-reorder), `linked`
   (optional map `{ref, label}` — ties an album to a specific News/Event
   post or Schedule game, e.g. a game-night gallery to that game, an event
   recap gallery to its News/Event post; `ref` is `news:<post_id>` or
@@ -134,8 +157,13 @@
   form — a native `<input list>`/`<datalist>` autocomplete
   (`buildLinkSearchField`/`albumLinkOptions()` in `app.js`) built from
   `/news` + the current season's `/schedule` merged into one searchable
-  list; nothing on the public site currently reads `linked`, it's
-  admin-only metadata for now. Individual photos live in the separate
+  list. The public News/Event pages read `linked` for its `news:<post_id>`
+  form only (not `schedule:...`) - `fetchNewsPhotoIndex()` in `site.js`
+  reverse-looks-up which album(s) are linked to a given post, and a full
+  article (both `news.html`'s own posts and the Home page's "Full
+  Article" modal) shows that post's linked album's photos as a carousel
+  (`buildPhotoCarousel()`) at the end of the article, see "News/Event
+  photo carousel" in architecture.md. Individual photos live in the separate
   `Photos` table below, mirroring the Rosters/Players split. The admin's
   Photos tab (`renderAlbumsSection` in `app.js`) shows the album list, and
   a "Photos" button per album drills into a `photosMeta(album, back)` view
@@ -180,9 +208,40 @@
   using the last saved `source_url` — no scheduled trigger exists yet
   (refresh is manual-only for now), this just means adding one later
   needs no handler changes.
-- `AdminAllowlist` (PK `email`): admin emails permitted to log in. Manage
-  with `scripts/seed_allowlist.py add|remove|list <email>` (uses the
-  `.venv` in the repo root — `pip install boto3` into it if missing).
+- `AdminAllowlist` (PK `email`) — surfaced in the admin UI as the
+  Administration → Users tab (`usersMeta()`/`backend/functions/users`):
+  `email`, `first_name`, `last_name`, `permissions` (list, any of `Admin`/
+  `Edit Season`/`Edit Rosters`/`Edit Contacts`/`Edit Content` — `Admin`
+  implies every other permission everywhere it's checked). Presence of a
+  row here (regardless of `permissions`) is what
+  `post_auth_allowlist` checks to allow sign-in at all; `permissions` is a
+  separate, later addition layered onto the same table, which is why a row
+  with no `permissions` attribute at all (created via
+  `scripts/seed_allowlist.py`, or predating this feature) is treated as
+  implicit `Admin` everywhere permissions are read (`_caller_permissions()`,
+  duplicated per handler like every other piece of boilerplate — see
+  "Not yet done" in `CLAUDE.md`) rather than silently locking existing
+  admins out — an explicit empty list (saved through the Users UI itself)
+  is what actually means "no permissions". Every write endpoint across
+  every resource looks up the caller's `permissions` this way and requires
+  the section's specific permission (or `Admin`); GET stays public exactly
+  as before for every resource except `/users` itself, which is JWT-only
+  and further restricted to `Admin` (a signed-in user may still `GET` their
+  own row, since the admin UI needs that on every login to decide what to
+  show). The `users` Lambda also refuses to remove or delete the last
+  remaining `Admin`, to avoid a self-inflicted lockout. Manage the bare
+  allowlist (bootstrap only — new rows this way have no name/permissions
+  yet, so are implicit `Admin` until edited through Users) with
+  `scripts/seed_allowlist.py add|remove|list <email>` (uses the `.venv` in
+  the repo root — `pip install boto3` into it if missing).
+- `Locations` (PK `location_id`): `name`, `address`, `order` (drag-to-
+  reorder, same pattern as Coaches). Admin-only convenience list under
+  Season → Locations (`locationsMeta()`/`backend/functions/locations`,
+  gated on `Edit Season` like Schedule/Standings) — exists purely so the
+  Schedule form can pick a venue instead of retyping its name/address on
+  every Away game; nothing on the public site reads `Locations` directly,
+  since Schedule denormalizes the picked row's `name`/`address` onto its
+  own item at save time (see `Schedule` above).
 
 ## Seed / backfill scripts
 
@@ -235,3 +294,17 @@ adding later.
 News posts with generated photos (same style as `add_team_photos.py`) and
 valid future published/end dates. Real copy and photos should replace these
 through the admin UI.
+
+`scripts/seed_locations.py` (same `.venv`, run 2026-09-15 once the
+`Locations` table existed) created one `Locations` row per real host school
+behind every distinct Away `opponent` in the 2026-2027 season — collapsing
+tournament-named opponents (e.g. `"Buena JV Tournament"`) down to their
+single physical host school rather than one Location per label — with
+addresses re-verified at the time (superseding `backfill_addresses.py`'s
+earlier mapping in a couple of spots: Oaks Christian's street suffix was
+corrected to "Rd", and Ventura High School's previously-blank address was
+filled in). It then set `location_id` on every matching Away game so the
+Schedule admin form's Location dropdown pre-selects correctly, while
+leaving `location`/`address` denormalized exactly as before. Like the
+backfill script before it, `"San Gabriel Tournament"` was left unmapped —
+its host school still isn't confirmed.

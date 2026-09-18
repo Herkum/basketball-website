@@ -15,20 +15,34 @@ project instructions, not optional background reading.
 @docs/gotchas.md
 @docs/content-schemas.md
 
+## Local dev quick start
+
+```
+cd frontend && python3 -m http.server 8000
+```
+
+Then open `http://127.0.0.1:8000/index.html` (public site) or
+`http://127.0.0.1:8000/admin/index.html` (admin). Runs against the real
+deployed API/Cognito/DynamoDB — there's no local backend. Requires
+`frontend/config.js`/`frontend/admin/config.js` to exist locally (gitignored)
+— see "Local frontend dev" in aws-and-deploy.md if either is missing.
+
 ## Not yet done
 
 - No custom domain — still on the CloudFront default `*.cloudfront.net` URL.
 - Public-facing site content is still just a placeholder page.
 - Terraform state is local only.
 - Every `backend/functions/*/handler.py` duplicates its own `DecimalEncoder`/
-  `_response` boilerplate (by deliberate convention — there's no shared
-  Lambda layer, each function is packaged independently via
-  `infra/lambda.tf`'s per-directory `archive_file`). Worth a follow-up:
-  add a Lambda layer (or a shared source dir merged into each function's
-  zip at build time) holding `DecimalEncoder`/`_response`, then trim it out
-  of every handler — but that's a packaging/infra change, not a drop-in
-  code edit, so it hasn't been done opportunistically alongside feature
-  work.
+  `_response` boilerplate, and now also its own `_caller_permissions()`
+  (looks up the JWT-authenticated caller's row in `AdminAllowlist`/Users to
+  gate writes — see `Administration → Users` in content-schemas.md) — by
+  deliberate convention, there's no shared Lambda layer, each function is
+  packaged independently via `infra/lambda.tf`'s per-directory
+  `archive_file`. Worth a follow-up: add a Lambda layer (or a shared source
+  dir merged into each function's zip at build time) holding
+  `DecimalEncoder`/`_response`/`_caller_permissions`, then trim them out of
+  every handler — but that's a packaging/infra change, not a drop-in code
+  edit, so it hasn't been done opportunistically alongside feature work.
 - `frontend/admin/app.js`'s generic `renderGenericSection()` table-paint
   (sortable headers, flag/strong/muted cell rendering, row Edit/Delete
   actions) is independently reimplemented a second and third time in

@@ -24,8 +24,22 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   Below that, `.layout` is the sidebar + central-column row (`#site-sidebar`
   + `.central-column` > `<main>`, see any page's HTML). `initLayout()` in
   `site.js` builds both the header (the brand block — see below) and the
-  sidebar nav (one link per non-`special` Content Block, in `order`) and
-  is called by every `initXPage()` before it renders its own content.
+  sidebar nav, and is called by every `initXPage()` before it renders its
+  own content. The nav is a fixed structure (`NAV_STRUCTURE` in `site.js`),
+  not purely `order`-driven like the admin's nav groups — Home and Store
+  are top-level links, then three hardcoded group headers (Media,
+  Basketball, Booster) each list a fixed set of generators as indented
+  sub-links (`.sub-link`), Rosters' per-team links nesting one level
+  deeper still (`.sub-link--team`). Each link's own label still comes from
+  its Content Block's `title` (falling back to the generator's own name if
+  that block doesn't exist yet, e.g. before Store/Sponsorships/Donate are
+  created in the admin) so the admin can rename any page freely — only the
+  grouping/ordering itself is hardcoded now. This was a deliberate,
+  explicit change (not something to casually redo elsewhere) — the
+  `special`/NoIndex flag no longer controls sidebar inclusion at all
+  (every generator in `NAV_STRUCTURE` always gets a link); it's still
+  surfaced in the admin as a search-engine NoIndex hint, just no longer
+  tied to nav visibility.
 - **Public site visual style**: follows the real "Classical" design
   system (`designer/classical-dcb8c44c-cb34-4501-a2e9-cf858d85b40d/`,
   see its `readme.md` for the full spec) rather than an earlier guess —
@@ -96,13 +110,23 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   `/schedule/<season>` — Last Result is the most recent game with both
   scores set, no new endpoint; Next Game's second meta line shows
   "Home · <gym contact label>" or "At <opponent's Location>" for away
-  games. The Home block's body text is deliberately placed *between* the
-  stat row and the standings section, not at the top of the page (a
-  specific request, not mockup fidelity — the mockup puts its intro
-  paragraph directly under the H1 instead). Mission Statement is **not**
-  shown on Home at all anymore — it has its own dedicated page (see
-  Content Blocks → page mapping). The standings section shows the
-  **full** `/standings` list (not a top-N teaser), sorted by
+  games. Directly below `.stat-row` comes the News/Events feed (events
+  nearest-date-first, then news newest-first, concatenated into one list),
+  rendering its first item as a lead article (`.news-lead` — text beside a
+  `.plate` photo, an excerpt, a "Read the recap →" link) and up to 3 more
+  as a `.news-grid` of smaller cards underneath — this mirrors the design
+  mockup's actual News section structure (which lives on its Home page,
+  not a separate page in the mockup) rather than the flatter single-
+  paragraph callout an earlier pass on this page used. The Home block's
+  body text comes after that, still deliberately placed below the fold
+  rather than at the top of the page (a specific request, not mockup
+  fidelity — the mockup puts its intro paragraph directly under the H1
+  instead) — it was originally positioned right under `.stat-row` before
+  the News feed moved in ahead of it, so it's now stat row → News → body
+  text → standings. Mission Statement is **not** shown on Home at all
+  anymore — it has its own dedicated page (see Content Blocks → page
+  mapping). The standings section (last on the page) shows the **full**
+  `/standings` list (not a top-N teaser), sorted by
   `compareStandingsRows()` (best League record first, Overall record as
   the tiebreaker — parsed from the scraped "W-L" strings — since the
   scraped `rank` field isn't used anywhere on this site), with no Rank
@@ -110,14 +134,6 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   block's `title` (`.standings-row-us`) — this is how the site knows "the
   row for us" without a separate flag on the scraped data. Its heading
   uses the Logo block's `league_name` with a "Varsity Standings" eyebrow.
-  Below that, the News/Events feed (events nearest-date-first, then news
-  newest-first, concatenated into one list) renders its first item as a
-  lead article (`.news-lead` — text beside a `.plate` photo, an excerpt,
-  a "Read the recap →" link) and up to 3 more as a `.news-grid` of
-  smaller cards underneath — this mirrors the design mockup's actual News
-  section structure (which lives on its Home page, not a separate page in
-  the mockup) rather than the flatter single-paragraph callout an earlier
-  pass on this page used.
 - **Schedule page List/Calendar toggle**: `initSchedulePage` in `site.js`
   can render the same filtered games as either the month-grouped table
   (`renderTable`) or a month calendar grid (`buildCalendar`, read-only
@@ -139,21 +155,22 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   content the public site displays. `/uploads` (POST-only, admin image
   upload) was untouched.
 - **Content Blocks → page mapping**: each Content Block has a `generator`
-  field (dropdown in the admin: None/Coaches/Rosters/Schedule/News/Contact
-  Us/Sponsors/Photos) that drives a dedicated public page. `findBlockByGenerator(blocks,
-  generator)` in `site.js` looks one up by that field (not by title, so the
-  admin can rename a block freely) and renders its `body` as the page's
-  intro and its `title` as the page's `<h1>` and sidebar label.
-  `GENERATOR_PAGES`/`pageForGenerator()` map a generator value to its HTML
-  file (`Rosters`→`rosters.html`, `Schedule`→`schedule.html`, etc.; no/
-  unrecognized generator falls back to `index.html`). Blocks with no
-  generator (`Home`, `Mission Statement`) are plain text sections rendered
-  only on the home page, still looked up there by title via
-  `findBlock(blocks, title)` since there's no dedicated page for them to
-  be a generator of. `Header`'s body is the site name shown in the
-  header bar — it's flagged `special`/NoIndex in the admin, which means
-  "exclude from the sidebar nav" (the sidebar **is** the auto-generated
-  content listing that flag was built for).
+  field (dropdown in the admin — see `CONTENT_BLOCK_GENERATORS` in
+  `admin/app.js` for the full list) that drives a dedicated public page.
+  `findBlockByGenerator(blocks, generator)` in `site.js` looks one up by
+  that field (not by title, so the admin can rename a block freely) and
+  renders its `body` as the page's intro and its `title` as the page's
+  `<h1>` and sidebar label. `GENERATOR_PAGES`/`pageForGenerator()` map a
+  generator value to its HTML file (`Rosters`→`rosters.html`,
+  `Schedule`→`schedule.html`, etc.; no/unrecognized generator falls back
+  to `index.html`). Blocks with no generator (`Home`) are plain text
+  sections rendered only on the home page, still looked up there by title
+  via `findBlock(blocks, title)` since there's no dedicated page for them
+  to be a generator of. Store/Sponsorships/Donate are the one exception to
+  "renders `body` as the page's intro" — `initHtmlBlockPage()` renders
+  their `body` as raw HTML (`innerHTML`, not text) instead, since those
+  three are meant to hold an admin-pasted embed (a store widget, a
+  donate button/iframe, a sponsorship pitch) rather than plain copy.
 - **Rosters get their own sidebar entries + pages**: `initLayout()` also
   fetches `/rosters` and, right after the "Rosters" sidebar link, injects
   one indented sub-link per team (`.sub-link` in `site.css`) pointing at
@@ -167,6 +184,25 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   end_date` after fetching `/news` in full. The Lambda deliberately returns
   everything unfiltered — the admin UI needs to see and edit past/future
   posts too, so filtering can't happen server-side without breaking that.
+- **News/Event photo carousel**: a full News/Event article (`news.html`'s
+  own posts, and the Home page's "Full Article" modal via `openNewsModal`)
+  shows a photo carousel at the end when an Album is linked to that post
+  (Albums' `linked.ref === "news:<post_id>"`, see Albums in
+  content-schemas.md — previously admin-only metadata nothing on the
+  public site read). `fetchNewsPhotoIndex()` builds a post_id -> photos[]
+  lookup by fetching `/albums` once and only fetching `/photos/<album_id>`
+  for albums actually linked to a post, not every album.
+  `buildPhotoCarousel(photos)` is a horizontally-scrolling strip of small
+  (96×96) thumbnails (`.photo-carousel`, `overflow-x: auto`) — not one
+  image stretched to the article's width — clicking any thumbnail calls
+  `openPhotoModal(photo)`, a dedicated full-size popup (mirrors
+  `openCoachModal`/`openNewsModal`'s modal chrome) whose own `<h2>` title
+  is the photo's `caption`, per explicit request, rather than a generic
+  "Photo" label. Each thumbnail still carries `.plate` (same sepia
+  treatment as every other on-page photo) but its click handler calls
+  `stopPropagation()`, since without it the document-level lightbox
+  listener (`initImageLightbox`) would also catch the same click and open
+  its own plain, caption-less popup on top of/behind this one.
 - **Auth**: Cognito User Pool federates with Google as an IdP. The SPA does
   Authorization Code + PKCE against Cognito's Hosted UI (no client secret in
   the browser). A Cognito post-authentication Lambda trigger
@@ -249,9 +285,19 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
     (a bottom-of-screen save/delete confirmation, auto-dismissing) are
     shared across every section, replacing the old per-section inline
     error/success text.
-  - The nav is grouped into Content / Teams / Season (`NAV_GROUPS`,
-    `SECTION_LABELS` in `app.js`), matching the mockup — a structural
-    change from the old flat row of tabs.
+  - The nav is grouped into Content / Teams / Season / Administration
+    (`NAV_GROUPS`, `SECTION_LABELS` in `app.js`), matching the mockup for
+    the first three — a structural change from the old flat row of tabs.
+    Administration (currently just Users) is the one group gated by
+    permission rather than always shown: `initDashboard()` fetches the
+    signed-in user's own Users row (`getCurrentEmail()` in `auth.js`
+    decodes the id_token's `email` claim, then `GET /users/<email>`) and
+    `hasSectionAccess()`/`SECTION_PERMISSION` hide any nav tab (not just
+    Administration's) whose required permission the user lacks — `Admin`
+    unlocks everything. This is UI convenience on top of the real
+    enforcement, which is server-side (see `AdminAllowlist` in
+    content-schemas.md) — hiding a tab isn't what stops a write, the
+    Lambda's own permission check is.
   - **Schedule and Standings stay bespoke**, not on `renderGenericSection`,
     but both reuse the same shared `openModal()`/`openConfirm()`/
     `showToast()` primitives everything else uses, so editing still feels

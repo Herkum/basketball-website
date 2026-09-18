@@ -17,6 +17,9 @@ s3 = boto3.client(
 )
 BUCKET_NAME = os.environ["BUCKET_NAME"]
 
+dynamodb = boto3.resource("dynamodb")
+users_table = dynamodb.Table(os.environ["USERS_TABLE_NAME"])
+
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
@@ -28,7 +31,27 @@ def _response(status, body):
     }
 
 
+def _caller_permissions(event):
+    claims = ((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt", {}).get("claims", {})
+    email = (claims.get("email") or "").lower()
+    if not email:
+        return set()
+    item = users_table.get_item(Key={"email": email}).get("Item")
+    if item is None:
+        return set()
+    permissions = item.get("permissions")
+    if permissions is None:
+        return {"Admin"}
+    return set(permissions)
+
+
 def handler(event, context):
+    # Uploads are shared across every section's image field, so any granted
+    # permission (not one specific one) is enough - the actual entity save
+    # is what each resource's own Lambda gates on its required permission.
+    if not _caller_permissions(event):
+        return _response(403, {"error": "forbidden"})
+
     body = json.loads(event.get("body") or "{}")
     content_type = body.get("content_type", "image/jpeg")
 

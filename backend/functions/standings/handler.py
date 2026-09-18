@@ -9,8 +9,10 @@ import boto3
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
+users_table = dynamodb.Table(os.environ["USERS_TABLE_NAME"])
 
 CACHE_ID = "current"
+REQUIRED_PERMISSION = "Edit Season"
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -111,6 +113,20 @@ def _try_refresh(source_url):
         return _response(502, {"error": f"scrape failed: {exc}"})
 
 
+def _caller_permissions(event):
+    claims = ((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt", {}).get("claims", {})
+    email = (claims.get("email") or "").lower()
+    if not email:
+        return set()
+    item = users_table.get_item(Key={"email": email}).get("Item")
+    if item is None:
+        return set()
+    permissions = item.get("permissions")
+    if permissions is None:
+        return {"Admin"}
+    return set(permissions)
+
+
 def handler(event, context):
     # A direct/scheduled invoke (e.g. a future EventBridge rule) has no
     # requestContext - treat it as an implicit refresh using the last
@@ -127,6 +143,10 @@ def handler(event, context):
     if method == "GET":
         item = _get_cached()
         return _response(200, item or {"source_url": None, "updated_at": None, "rows": []})
+
+    perms = _caller_permissions(event)
+    if "Admin" not in perms and REQUIRED_PERMISSION not in perms:
+        return _response(403, {"error": "forbidden"})
 
     if method == "POST":
         body = json.loads(event.get("body") or "{}")

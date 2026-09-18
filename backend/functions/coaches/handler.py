@@ -8,6 +8,9 @@ import boto3
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
+users_table = dynamodb.Table(os.environ["USERS_TABLE_NAME"])
+
+REQUIRED_PERMISSION = "Edit Rosters"
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -25,6 +28,24 @@ def _response(status, body):
     }
 
 
+def _caller_permissions(event):
+    claims = ((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt", {}).get("claims", {})
+    email = (claims.get("email") or "").lower()
+    if not email:
+        return set()
+    item = users_table.get_item(Key={"email": email}).get("Item")
+    if item is None:
+        return set()
+    permissions = item.get("permissions")
+    # A user with no `permissions` attribute at all (created before this
+    # existed, or via scripts/seed_allowlist.py) is grandfathered in as
+    # Admin rather than locked out on deploy. An explicit empty list
+    # (saved through the Users admin UI) means "no permissions".
+    if permissions is None:
+        return {"Admin"}
+    return set(permissions)
+
+
 def handler(event, context):
     method = event["requestContext"]["http"]["method"]
     coach_id = (event.get("pathParameters") or {}).get("coach_id")
@@ -37,6 +58,10 @@ def handler(event, context):
         items = table.scan().get("Items", [])
         items.sort(key=lambda i: i.get("order", 0))
         return _response(200, items)
+
+    perms = _caller_permissions(event)
+    if "Admin" not in perms and REQUIRED_PERMISSION not in perms:
+        return _response(403, {"error": "forbidden"})
 
     if method in ("POST", "PUT"):
         body = json.loads(event.get("body") or "{}")
