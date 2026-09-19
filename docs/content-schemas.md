@@ -23,7 +23,7 @@
   `/locations` fetch first and only fall back to the stored `location`/
   `address` text when there's no match (a deleted Location, or a game that
   predates `location_id`/is unmapped, e.g. the "San Gabriel Tournament"
-  games — see `scripts/seed_locations.py`) — this is what makes renaming a
+  games) — this is what makes renaming a
   Location in the admin UI instantly update every game already linked to
   it, everywhere it's displayed, with no re-save needed. `address` (via
   either path) is used to build the Google Maps search link —
@@ -243,68 +243,20 @@
   since Schedule denormalizes the picked row's `name`/`address` onto its
   own item at save time (see `Schedule` above).
 
-## Seed / backfill scripts
+## Seed / backfill scripts (historical)
 
-`scripts/seed_rosters.py` (same `.venv`) creates Varsity/Junior
-Varsity/Frosh teams with 15 generated players each and assigns every
-existing coach to every team — reusable for resetting test data, but it
-always creates new teams rather than upserting, so delete the old ones
-first if reseeding.
+The one-off seed/backfill/migration scripts that originally populated
+Rosters, Schedule, News, Sponsors, Contacts, Content Blocks, and
+`Locations` (and later backfilled `time`/`team_id`/`address`/`location_id`
+onto already-seeded Schedule games) have been deleted from `scripts/` —
+each had already done its one job (DynamoDB is the durable record now) and
+none of them re-ran automatically or safely re-ran at all (most `put_item`
+new rows rather than upsert). `Locations` is the live source of truth for
+game addresses today, populated by hand through the admin's Season →
+Locations tab — the old scraped/hardcoded address mappings are gone with
+the scripts that wrote them. The 4 "San Gabriel Tournament" games still
+have no confirmed address/Location — fill in through the admin UI once
+known.
 
-`scripts/add_team_photos.py` (same `.venv`, needs Pillow — `pip install
-Pillow` if missing) generates a simple colored placeholder image (team
-initials on a solid background) for any roster missing a photo and uploads
-it directly via boto3/S3, bypassing the presigned-URL Lambda since it
-already has AWS credentials. Skips rosters that already have an `image`.
-Real team photos should replace these later through the admin UI's normal
-upload/crop flow.
-
-`scripts/seed_schedule.py` (same `.venv`) seeded the Varsity boys 2026-2027
-schedule (season key `"2026-2027"`) from
-https://www.nphsathletics.org/varsity/basketball-boys/schedule-results,
-scraped 2026-09-12 while the season hadn't started yet (0-0-0 record), so
-every game has blank `our_score`/`opponent_score`. It predates the
-`time`/`address`/`team_id` fields, so `scripts/backfill_schedule_time_team.py`
-added `time` (scraped alongside the original dates, just not stored yet at
-that point) and `team_id` (linked to the "Varsity" roster) after the fact —
-`address` is still blank for all of these since the scrape only had
-"Gym"/"TBA"/tournament venue names, not real street addresses.
-
-`scripts/seed_jv_frosh_schedule.py` (same `.venv`) did the same for Junior
-Varsity and Frosh/Soph, scraped 2026-09-12 from
-https://www.nphsathletics.org/lower/basketball-boys-junior-varsity/schedule-results/
-and .../basketball-boys-frosh-soph/schedule-results/ — written after the
-schema already had `time`/`address`/`team_id`, so it sets them directly
-rather than needing a separate backfill. Linked to the "Junior Varsity" and
-"Frosh" rosters by name.
-
-None of these scripts re-run automatically — re-scrape and re-run (or edit
-through the admin UI) as scores come in or the schedule changes.
-
-`scripts/backfill_addresses.py` (same `.venv`) filled in `address` for 78/82
-games: Newbury Park High School's address (`456 N Reino Rd, Newbury Park,
-CA 91320`) for every Home game, and each opponent's real, web-verified
-street address for Away games. The 4 "San Gabriel Tournament" games are
-still blank — the host site couldn't be confirmed, so it was left blank
-rather than guessed; fill it in through the admin UI once known. The
-opponent→address mapping lives in the script itself if more venues need
-adding later.
-
-`scripts/seed_news.py` (same `.venv`, needs Pillow) created 4 placeholder
-News posts with generated photos (same style as `add_team_photos.py`) and
-valid future published/end dates. Real copy and photos should replace these
-through the admin UI.
-
-`scripts/seed_locations.py` (same `.venv`, run 2026-09-15 once the
-`Locations` table existed) created one `Locations` row per real host school
-behind every distinct Away `opponent` in the 2026-2027 season — collapsing
-tournament-named opponents (e.g. `"Buena JV Tournament"`) down to their
-single physical host school rather than one Location per label — with
-addresses re-verified at the time (superseding `backfill_addresses.py`'s
-earlier mapping in a couple of spots: Oaks Christian's street suffix was
-corrected to "Rd", and Ventura High School's previously-blank address was
-filled in). It then set `location_id` on every matching Away game so the
-Schedule admin form's Location dropdown pre-selects correctly, while
-leaving `location`/`address` denormalized exactly as before. Like the
-backfill script before it, `"San Gabriel Tournament"` was left unmapped —
-its host school still isn't confirmed.
+`scripts/seed_allowlist.py` is the one script still in the repo — see
+`AdminAllowlist` above; it's an ongoing CLI, not a one-off.

@@ -77,7 +77,7 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   already owns, not a new field.
 - **Header brand block + sidebar record/footer** (`initLayout()`, every
   page): a "Logo" Content Block (`generator: "Logo"`, `special: true`/
-  NoIndex — created once via `scripts/set_logo_block_and_reorder.py`)
+  NoIndex — created once via a one-off script, since deleted)
   drives the brand block rendered inside the full-width header bar (see
   "Public site layout" above) — its `image` is the logo (falls back to a
   monogram of the first letter of each word in `title`, e.g. "Newbury
