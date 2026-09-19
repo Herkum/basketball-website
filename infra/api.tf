@@ -5,6 +5,8 @@ resource "aws_apigatewayv2_api" "admin" {
   cors_configuration {
     allow_origins = [
       "https://${aws_cloudfront_distribution.site.domain_name}",
+      "https://${local.site_domain}",
+      "https://${local.site_domain_www}",
       "http://127.0.0.1:8000",
     ]
     allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]

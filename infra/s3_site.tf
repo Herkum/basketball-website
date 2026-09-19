@@ -17,6 +17,8 @@ resource "aws_s3_bucket_cors_configuration" "site" {
     allowed_methods = ["PUT"]
     allowed_origins = [
       "https://${aws_cloudfront_distribution.site.domain_name}",
+      "https://${local.site_domain}",
+      "https://${local.site_domain_www}",
       "http://127.0.0.1:8000",
     ]
     allowed_headers = ["content-type"]
@@ -34,6 +36,7 @@ resource "aws_cloudfront_origin_access_control" "site" {
 resource "aws_cloudfront_distribution" "site" {
   enabled             = true
   default_root_object = "index.html"
+  aliases             = [local.site_domain, local.site_domain_www]
 
   origin {
     domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
@@ -75,7 +78,9 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = aws_acm_certificate_validation.site.certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 }
 
@@ -137,9 +142,9 @@ resource "aws_s3_object" "admin_config" {
     cognito_domain = "https://${aws_cognito_user_pool_domain.admin.domain}.auth.${var.aws_region}.amazoncognito.com"
     client_id      = aws_cognito_user_pool_client.admin_spa.id
     api_base       = trimsuffix(aws_apigatewayv2_stage.default.invoke_url, "/")
-    redirect_uri   = "https://${aws_cloudfront_distribution.site.domain_name}/admin/callback.html"
-    logout_uri     = "https://${aws_cloudfront_distribution.site.domain_name}/admin/index.html"
-    site_origin    = "https://${aws_cloudfront_distribution.site.domain_name}"
+    redirect_uri   = "https://${local.site_domain}/admin/callback.html"
+    logout_uri     = "https://${local.site_domain}/admin/index.html"
+    site_origin    = "https://${local.site_domain}"
   })
   content_type = "application/javascript"
 }
@@ -152,7 +157,7 @@ resource "aws_s3_object" "public_config" {
   key    = "config.js"
   content = templatefile("${local.frontend_dir}/config.js.tpl", {
     api_base    = trimsuffix(aws_apigatewayv2_stage.default.invoke_url, "/")
-    site_origin = "https://${aws_cloudfront_distribution.site.domain_name}"
+    site_origin = "https://${local.site_domain}"
   })
   content_type = "application/javascript"
 }

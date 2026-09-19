@@ -78,10 +78,12 @@ resource "aws_cognito_user_pool_client" "admin_spa" {
 
   callback_urls = [
     "https://${aws_cloudfront_distribution.site.domain_name}/admin/callback.html",
+    "https://${local.site_domain}/admin/callback.html",
     "http://127.0.0.1:8000/admin/callback.html",
   ]
   logout_urls = [
     "https://${aws_cloudfront_distribution.site.domain_name}/admin/index.html",
+    "https://${local.site_domain}/admin/index.html",
     "http://127.0.0.1:8000/admin/index.html",
   ]
 
