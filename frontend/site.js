@@ -140,7 +140,7 @@ const GENERATOR_PAGES = {
   "Games Online": "games-online.html",
 };
 
-// Sidebar nav is a fixed structure (Home/Store top-level, then three
+// Sidebar nav is a fixed structure (Home/Store/Donate top-level, then three
 // grouped sections) rather than being driven purely by Content Block
 // `order`, per explicit request - group headers below are hardcoded
 // labels, but each link's own text still comes from its Content Block's
@@ -151,17 +151,18 @@ const GENERATOR_PAGES = {
 // reachable before that block exists.
 const NAV_STRUCTURE = [
   { home: true },
-  { generator: "Store" },
+  // Store links straight out to the promo-ops team store (new tab) rather
+  // than to store.html; its label still comes from the Store block's title.
+  { generator: "Store", href: "https://npbasketball.promo-ops.com/" },
+  { generator: "Donate" },
   { group: "Media", items: ["News", "Photos", "Sponsors", "Games Online"] },
   { group: "Basketball", items: ["Schedule", "Standings", "Rosters", "Coaches"] },
   {
     group: "Booster",
     items: [
-      { label: "Panther Team Store", href: "https://npbasketball.promo-ops.com/" },
       "Mission Statement",
       "Contact Us",
       "Sponsorships",
-      "Donate",
     ],
   },
 ];
@@ -314,10 +315,15 @@ async function initLayout() {
       }
       continue;
     }
-    // Top-level, non-grouped generator-driven link (Store).
+    // Top-level, non-grouped generator-driven link (Store, Donate).
     const block = findBlockByGenerator(blocks, entry.generator);
+    const label = block?.title || entry.generator;
+    if (entry.href) {
+      navItems.push(el("a", { href: entry.href, text: label, target: "_blank", rel: "noopener" }));
+      continue;
+    }
     const href = pageForGenerator(entry.generator);
-    navItems.push(el("a", { href, text: block?.title || entry.generator, ...classAttr(href === currentFile && "active") }));
+    navItems.push(el("a", { href, text: label, ...classAttr(href === currentFile && "active") }));
   }
 
   sidebar.appendChild(el("nav", { class: "site-nav" }, navItems));

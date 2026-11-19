@@ -26,14 +26,17 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   `site.js` builds both the header (the brand block — see below) and the
   sidebar nav, and is called by every `initXPage()` before it renders its
   own content. The nav is a fixed structure (`NAV_STRUCTURE` in `site.js`),
-  not purely `order`-driven like the admin's nav groups — Home and Store
-  are top-level links, then three hardcoded group headers (Media,
+  not purely `order`-driven like the admin's nav groups — Home, Store, and
+  Donate are top-level links, then three hardcoded group headers (Media,
   Basketball, Booster) each list a fixed set of generators as indented
   sub-links (`.sub-link`), Rosters' per-team links nesting one level
   deeper still (`.sub-link--team`). A group item can also be a
   plain `{label, href}` object instead of a generator name — an external
-  link with no page/Content Block of its own, opened in a new tab (Booster's
-  "Panther Team Store", which points at the promo-ops.com store). Each link's own label still comes from
+  link with no page/Content Block of its own, opened in a new tab (none
+  currently use this). A top-level generator entry can carry an `href`
+  too, which overrides its page link with an external one (new tab) while
+  keeping the block's `title` as the label — Store uses this to point
+  straight at the promo-ops.com team store instead of `store.html`. Each link's own label still comes from
   its Content Block's `title` (falling back to the generator's own name if
   that block doesn't exist yet, e.g. before Store/Sponsorships/Donate are
   created in the admin) so the admin can rename any page freely — only the
