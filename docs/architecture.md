@@ -68,7 +68,11 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   (`.record-card`) and nav group headers (`.nav-group-label`) are solid
   black bands with yellow text, matching the header bar; every page's
   `#page-title` is a white plate with a black left bar and yellow
-  underline; `.section-heading h2` gets just the black left bar.
+  underline; `.section-heading h2` gets just the black left bar; the
+  Home page `.stat-row` (Last Result/Next Game/Upcoming) is a white card
+  like `.home-card` (a dark version was tried and judged too heavy), with
+  larger values and a green/red W/L badge (`.stat-result-badge`) on the
+  last result.
   `.plate` is adopted verbatim from the bundle: a sepia/desaturated
   filter (`sepia(0.22) saturate(0.82) contrast(1.05)`) plus a matted
   border, wrapped around every real photo (team/coach/news/gallery

@@ -1657,21 +1657,28 @@ tbody tr:hover {
   font-size: 0.9rem;
 }
 
+/* Home page Last Result / Next Game / Upcoming band - a white card
+   (same treatment as the .home-card standings/sponsor cards further
+   down) so it reads as its own block without a heavy dark fill. */
 .stat-row {
   display: flex;
   flex-wrap: wrap;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  margin-top: 0.75rem;
+  background: var(--color-white);
+  border-top: 3px solid var(--color-black);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 
-.stat-row > span.eyebrow {
+.stat-row .eyebrow {
   font-size: 0.7rem;
+  letter-spacing: 0.16em;
 }
 
 .stat-col {
   flex: 1 1 200px;
   padding: 1.1rem 1.25rem;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--color-grey);
 }
 
 /* Wider weighting for the Upcoming column (a short list, not one stat) -
@@ -1692,15 +1699,40 @@ tbody tr:hover {
 }
 
 .stat-value {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   font-family: var(--font-heading);
-  font-size: 1.5rem;
-  line-height: 1.2;
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.1;
   text-decoration: none;
+  color: var(--color-text);
 }
 
 a.stat-value:hover {
   text-decoration: underline;
+}
+
+.stat-result-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-white);
+}
+
+.stat-result-badge.is-win {
+  background: #1f9d3f;
+}
+
+.stat-result-badge.is-loss {
+  background: #d93a2b;
 }
 
 .stat-meta {
@@ -1716,6 +1748,10 @@ a.stat-value:hover {
   border-bottom: 1px solid var(--border);
 }
 
+.stat-row .stat-list-row {
+  border-bottom-color: var(--color-grey);
+}
+
 .stat-list-link {
   display: block;
   padding-top: 0.6rem;
@@ -1724,7 +1760,11 @@ a.stat-value:hover {
 @media (max-width: 720px) {
   .stat-col {
     border-right: none;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--color-grey);
+  }
+
+  .stat-col:last-child {
+    border-bottom: none;
   }
 }
 

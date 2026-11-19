@@ -422,10 +422,10 @@ async function initHomePage() {
       statRow.appendChild(
         el("div", { class: "stat-col" }, [
           el("span", { class: "eyebrow", text: "Last Result" }),
-          el("div", {
-            class: `stat-value nums ${won ? "result-win" : "result-loss"}`,
-            text: `${lastResult.our_score} – ${lastResult.opponent_score}`,
-          }),
+          el("div", { class: "stat-value nums" }, [
+            el("span", { class: `stat-result-badge ${won ? "is-win" : "is-loss"}`, text: won ? "W" : "L" }),
+            el("span", { text: `${lastResult.our_score} – ${lastResult.opponent_score}` }),
+          ]),
           el("p", { class: "stat-meta", text: gameLine(lastResult) }),
           el("p", { class: "stat-meta nums", text: lastResult.date }),
         ])
