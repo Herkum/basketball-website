@@ -1467,24 +1467,67 @@ async function initPhotosPage() {
   });
 }
 
-const STANDINGS_COLUMNS = [
-  { key: "school", label: "School" },
-  { key: "league_record", label: "W-L", group: "League" },
-  { key: "league_pct", label: "PCT", group: "League" },
-  { key: "league_pf", label: "PF", group: "League" },
-  { key: "league_pa", label: "PA", group: "League" },
-  { key: "overall_record", label: "W-L", group: "Overall" },
-  { key: "overall_pct", label: "PCT", group: "Overall" },
-  { key: "overall_pf", label: "PF", group: "Overall" },
-  { key: "overall_pa", label: "PA", group: "Overall" },
-  { key: "streak", label: "Streak" },
-];
+// Win percentage recomputed from the W-L string rather than read from the
+// scraped `*_pct` fields - MaxPreps sometimes reports a stale .000 for a
+// team that already has a win (e.g. a 1-0 team), and a 0-0 team reads
+// better as a dash than as ".000". Formatted the conventional way (".667",
+// "1.000") with no leading zero.
+function formatPct(record) {
+  const { wins, losses } = parseRecord(record);
+  const games = wins + losses;
+  if (!games) return "—";
+  const pct = (wins / games).toFixed(3);
+  return pct.startsWith("0") ? pct.slice(1) : pct;
+}
+
+function formatDiff(pf, pa) {
+  const diff = (Number(pf) || 0) - (Number(pa) || 0);
+  return diff > 0 ? `+${diff}` : String(diff);
+}
+
+// Same green/red as the streak badges - positive differential green,
+// negative red, zero left neutral.
+function diffClass(diff) {
+  if (diff.startsWith("+")) return "diff-pos";
+  if (diff.startsWith("-")) return "diff-neg";
+  return "";
+}
+
+// Standard competition ranking over compareStandingsRows' order - teams
+// with identical league and overall records share a place ("T-1"), and
+// the next distinct team skips ahead (1, 1, 3), like any printed standings.
+function standingsPlaces(sortedRows) {
+  const places = [];
+  sortedRows.forEach((row, i) => {
+    if (i > 0 && compareStandingsRows(sortedRows[i - 1], row) === 0) {
+      places.push(places[i - 1]);
+    } else {
+      places.push(i + 1);
+    }
+  });
+  const counts = places.reduce((acc, p) => ({ ...acc, [p]: (acc[p] || 0) + 1 }), {});
+  return places.map((p) => ({ place: p, tied: counts[p] > 1 }));
+}
+
+// "2W"/"1L" from the scrape; anything without a W/L (e.g. "0" before a
+// team has played) renders as a plain dash rather than a badge.
+function streakBadge(streak) {
+  const match = /^(\d+)\s*([WL])$/i.exec((streak || "").trim());
+  if (!match || match[1] === "0") return el("span", { class: "streak-empty", text: "—" });
+  const isWin = match[2].toUpperCase() === "W";
+  return el("span", {
+    class: `streak-badge ${isWin ? "streak-badge--win" : "streak-badge--loss"}`,
+    text: `${isWin ? "W" : "L"}${match[1]}`,
+  });
+}
 
 async function initStandingsPage() {
   const { blocks, standingsCache: cache } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Standings");
+  const logoBlock = findBlockByGenerator(blocks, "Logo");
   setPageTitle(intro?.title || "League Standings");
   const main = document.getElementById("page-content");
+  main.appendChild(el("span", { class: "eyebrow", text: `${logoBlock?.league_name || "League"} · ${defaultSeason()} Varsity` }));
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
   const rows = [...(cache?.rows || [])].sort(compareStandingsRows);
@@ -1492,68 +1535,70 @@ async function initStandingsPage() {
     main.appendChild(el("p", { class: "empty-state", text: "Standings aren't available yet." }));
     return;
   }
+  const places = standingsPlaces(rows);
+  // Same "which row is us" matching as the Home page standings and the
+  // sidebar record box - our school's row matched by the Logo block title.
+  const usName = (logoBlock?.title || "").toLowerCase();
+  const usIndex = usName ? rows.findIndex((r) => (r.school || "").toLowerCase() === usName) : -1;
 
+  const th = (text, attrs = {}) => el("th", { ...attrs, text });
   const tbody = el("tbody");
-  for (const row of rows) {
-    const schoolCell = el(
-      "td",
-      { class: "col-school" },
-      [
-        row.link
-          ? el("a", { href: row.link, target: "_blank", text: row.school || "" })
-          : el("span", { text: row.school || "" }),
-      ]
-    );
-
+  rows.forEach((row, i) => {
+    const { place, tied } = places[i];
+    const leagueDiff = formatDiff(row.league_pf, row.league_pa);
+    const overallDiff = formatDiff(row.overall_pf, row.overall_pa);
     tbody.appendChild(
-      el(
-        "tr",
-        {},
-        STANDINGS_COLUMNS.map(({ key }) => (key === "school" ? schoolCell : el("td", { class: "nums", text: row[key] || "" })))
-      )
+      el("tr", i === usIndex ? { class: "standings-row-us" } : {}, [
+        el("td", { class: "col-place nums", text: `${tied ? "T" : ""}${place}` }),
+        el("td", { class: "col-school" }, [
+          row.link
+            ? el("a", { href: row.link, target: "_blank", rel: "noopener", text: row.school || "" })
+            : el("span", { text: row.school || "" }),
+        ]),
+        el("td", { class: "col-record nums group-start", text: row.league_record || "0-0" }),
+        el("td", { class: "nums", text: formatPct(row.league_record) }),
+        el("td", { class: `nums col-diff ${diffClass(leagueDiff)}`.trim(), title: `PF ${row.league_pf || 0} · PA ${row.league_pa || 0}`, text: leagueDiff }),
+        el("td", { class: "col-record nums group-start", text: row.overall_record || "0-0" }),
+        el("td", { class: "nums", text: formatPct(row.overall_record) }),
+        el("td", { class: "nums col-optional", text: row.overall_pf || "0" }),
+        el("td", { class: "nums col-optional", text: row.overall_pa || "0" }),
+        el("td", { class: `nums col-diff ${diffClass(overallDiff)}`.trim(), text: overallDiff }),
+        el("td", { class: "group-start" }, [streakBadge(row.streak)]),
+      ])
     );
-  }
+  });
 
-  // <col> widths (rather than relying on header cell widths) so School
-  // gets real extra room regardless of the grouped League/Overall header
-  // above using colspan - fixed table layout only reads column widths
-  // reliably from a colgroup once any header row spans multiple columns.
-  const colgroup = el(
-    "colgroup",
-    {},
-    STANDINGS_COLUMNS.map(({ key }) => el("col", { style: key === "school" ? "width:22%" : key === "streak" ? "width:8%" : "width:8.75%" }))
-  );
+  const table = el("table", { class: "standings-table standings-table--full" }, [
+    el("thead", {}, [
+      el("tr", { class: "standings-group-row" }, [
+        th("", { colspan: "2" }),
+        th("League", { colspan: "3", class: "group-start" }),
+        th("Overall", { colspan: "5", class: "group-start" }),
+        th("", { class: "group-start" }),
+      ]),
+      el("tr", {}, [
+        th("#", { class: "col-place" }),
+        th("School", { class: "col-school" }),
+        th("W-L", { class: "group-start" }),
+        th("Pct"),
+        th("Diff", { title: "Points for minus points against" }),
+        th("W-L", { class: "group-start" }),
+        th("Pct"),
+        th("PF", { class: "col-optional", title: "Points for" }),
+        th("PA", { class: "col-optional", title: "Points against" }),
+        th("Diff", { title: "Points for minus points against" }),
+        th("Streak", { class: "group-start" }),
+      ]),
+    ]),
+    tbody,
+  ]);
+  main.appendChild(el("div", { class: "table-scroll" }, [table]));
 
-  const groupHeaderRow = el("tr", {}, [el("th", { class: "col-school", rowspan: "2", text: "School" })]);
-  let i = 1;
-  while (i < STANDINGS_COLUMNS.length) {
-    const { group } = STANDINGS_COLUMNS[i];
-    if (!group) {
-      groupHeaderRow.appendChild(el("th", { rowspan: "2", text: STANDINGS_COLUMNS[i].label }));
-      i++;
-      continue;
-    }
-    let span = 0;
-    while (i + span < STANDINGS_COLUMNS.length && STANDINGS_COLUMNS[i + span].group === group) span++;
-    groupHeaderRow.appendChild(el("th", { colspan: String(span), text: group }));
-    i += span;
-  }
-  const subHeaderRow = el(
-    "tr",
-    {},
-    STANDINGS_COLUMNS.filter((c) => c.group).map((c) => el("th", { text: c.label }))
-  );
-
-  main.appendChild(
-    el("table", { class: "standings-table" }, [colgroup, el("thead", {}, [groupHeaderRow, subHeaderRow]), tbody])
-  );
-
+  const footnoteParts = ["Ranked by league record, then overall record."];
   if (cache?.updated_at) {
-    main.appendChild(
-      el("p", {
-        class: "card-subtitle",
-        text: `Last updated ${new Date(cache.updated_at * 1000).toLocaleString()}`,
-      })
+    footnoteParts.push(
+      `Updated ${new Date(cache.updated_at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}.`
     );
   }
+  main.appendChild(el("p", { class: "standings-footnote", text: footnoteParts.join(" ") }));
 }
