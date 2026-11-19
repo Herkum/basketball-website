@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Lora:wght@400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Lora:wght@400;600;700&display=swap");
 
 :root {
   --color-yellow:    #FFFF5D;
@@ -1178,8 +1178,40 @@ tbody tr:hover {
 
 .standings-table--full td.col-school {
   font-family: var(--font-heading);
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   font-weight: 600;
+}
+/* Shield monogram beside each school name - same shape as the header's
+   Logo fallback (.brand-logo-fallback in site.css), outlined for other
+   schools and filled with the header's yellow on our own row. */
+.standings-table--full .school-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.standings-table--full .school-badge {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--badge-border, currentColor);
+  background: var(--badge-bg, transparent);
+  border-radius: 2px 2px 13px 13px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--badge-fg, color-mix(in srgb, var(--color-text) 70%, transparent));
+}
+
+.standings-table--full tr.standings-row-us .school-badge {
+  background: var(--color-yellow-dk);
+  border-color: var(--color-yellow-dk);
+  color: var(--color-black);
 }
 
 .standings-table--full td.col-school a {

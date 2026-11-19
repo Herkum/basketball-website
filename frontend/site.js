@@ -170,26 +170,6 @@ function pageForGenerator(generator) {
   return GENERATOR_PAGES[generator] || "index.html";
 }
 
-// Standings rows store records as "W-L" strings (from the MaxPreps
-// scrape) - parse one back into numbers for sorting/comparison.
-function parseRecord(str) {
-  const [wins, losses] = (str || "0-0").split("-").map(Number);
-  return { wins: wins || 0, losses: losses || 0 };
-}
-
-// Best league record first, then best overall record as a tiebreaker -
-// used instead of the scraped `rank` field, which this site doesn't show.
-function compareStandingsRows(a, b) {
-  const aLeague = parseRecord(a.league_record);
-  const bLeague = parseRecord(b.league_record);
-  if (aLeague.wins !== bLeague.wins) return bLeague.wins - aLeague.wins;
-  if (aLeague.losses !== bLeague.losses) return aLeague.losses - bLeague.losses;
-  const aOverall = parseRecord(a.overall_record);
-  const bOverall = parseRecord(b.overall_record);
-  if (aOverall.wins !== bOverall.wins) return bOverall.wins - aOverall.wins;
-  return aOverall.losses - bOverall.losses;
-}
-
 // Builds the sidebar (brand block, W-L record box, one nav link per
 // non-NoIndex Content Block in `order`, and an address/league footer) and
 // fills the header bar from the "Header" block's body. Returns the fetched
@@ -1467,57 +1447,14 @@ async function initPhotosPage() {
   });
 }
 
-// Win percentage recomputed from the W-L string rather than read from the
-// scraped `*_pct` fields - MaxPreps sometimes reports a stale .000 for a
-// team that already has a win (e.g. a 1-0 team), and a 0-0 team reads
-// better as a dash than as ".000". Formatted the conventional way (".667",
-// "1.000") with no leading zero.
-function formatPct(record) {
-  const { wins, losses } = parseRecord(record);
-  const games = wins + losses;
-  if (!games) return "—";
-  const pct = (wins / games).toFixed(3);
-  return pct.startsWith("0") ? pct.slice(1) : pct;
-}
-
-function formatDiff(pf, pa) {
-  const diff = (Number(pf) || 0) - (Number(pa) || 0);
-  return diff > 0 ? `+${diff}` : String(diff);
-}
-
-// Same green/red as the streak badges - positive differential green,
-// negative red, zero left neutral.
-function diffClass(diff) {
-  if (diff.startsWith("+")) return "diff-pos";
-  if (diff.startsWith("-")) return "diff-neg";
-  return "";
-}
-
-// Standard competition ranking over compareStandingsRows' order - teams
-// with identical league and overall records share a place ("T-1"), and
-// the next distinct team skips ahead (1, 1, 3), like any printed standings.
-function standingsPlaces(sortedRows) {
-  const places = [];
-  sortedRows.forEach((row, i) => {
-    if (i > 0 && compareStandingsRows(sortedRows[i - 1], row) === 0) {
-      places.push(places[i - 1]);
-    } else {
-      places.push(i + 1);
-    }
-  });
-  const counts = places.reduce((acc, p) => ({ ...acc, [p]: (acc[p] || 0) + 1 }), {});
-  return places.map((p) => ({ place: p, tied: counts[p] > 1 }));
-}
-
-// "2W"/"1L" from the scrape; anything without a W/L (e.g. "0" before a
-// team has played) renders as a plain dash rather than a badge.
+// A team that hasn't played yet (no parseable streak) gets a plain dash
+// rather than a badge.
 function streakBadge(streak) {
-  const match = /^(\d+)\s*([WL])$/i.exec((streak || "").trim());
-  if (!match || match[1] === "0") return el("span", { class: "streak-empty", text: "—" });
-  const isWin = match[2].toUpperCase() === "W";
+  const parsed = parseStreak(streak);
+  if (!parsed) return el("span", { class: "streak-empty", text: "—" });
   return el("span", {
-    class: `streak-badge ${isWin ? "streak-badge--win" : "streak-badge--loss"}`,
-    text: `${isWin ? "W" : "L"}${match[1]}`,
+    class: `streak-badge ${parsed.isWin ? "streak-badge--win" : "streak-badge--loss"}`,
+    text: parsed.label,
   });
 }
 
@@ -1551,9 +1488,12 @@ async function initStandingsPage() {
       el("tr", i === usIndex ? { class: "standings-row-us" } : {}, [
         el("td", { class: "col-place nums", text: `${tied ? "T" : ""}${place}` }),
         el("td", { class: "col-school" }, [
-          row.link
-            ? el("a", { href: row.link, target: "_blank", rel: "noopener", text: row.school || "" })
-            : el("span", { text: row.school || "" }),
+          el("div", { class: "school-cell" }, [
+            el("span", { class: "school-badge", "aria-hidden": "true", style: schoolBadgeStyle(row.school), text: schoolInitials(row.school) }),
+            row.link
+              ? el("a", { href: row.link, target: "_blank", rel: "noopener", text: row.school || "" })
+              : el("span", { text: row.school || "" }),
+          ]),
         ]),
         el("td", { class: "col-record nums group-start", text: row.league_record || "0-0" }),
         el("td", { class: "nums", text: formatPct(row.league_record) }),

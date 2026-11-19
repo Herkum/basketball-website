@@ -137,6 +137,26 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   block's `title` (`.standings-row-us`) — this is how the site knows "the
   row for us" without a separate flag on the scraped data. Its heading
   uses the Logo block's `league_name` with a "Varsity Standings" eyebrow.
+- **Standings page + admin League Standings table**: `initStandingsPage`
+  (`site.js`) and the admin's `renderStandingsSection` (`admin/app.js`)
+  render the same table layout from the same helpers in `shared.js`
+  (`parseRecord`/`compareStandingsRows`/`standingsPlaces`/`formatPct`/
+  `formatDiff`/`diffClass`/`parseStreak`), so the two can't drift: rows
+  ranked with shared places for identical records ("T2"), our row
+  highlighted (Logo block `title` match), win pct **recomputed from the
+  W-L string** rather than shown from the scraped `*_pct` fields (MaxPreps
+  has reported a stale .000 for a 1-0 team — so a hand-edited pct in the
+  admin modal won't appear anywhere), point differentials and streak
+  badges in a brighter green/red (`--standings-win`/`--standings-loss`)
+  than the site's muted `--win`, and a dark header band. The public table
+  drops League PF/PA (shown as a tooltip on League Diff); the admin's
+  shows the same columns plus Actions.
+  Each school name has a shield monogram (`schoolInitials()`, same
+  shape as the header's Logo fallback) colored from the hardcoded
+  `SCHOOL_COLORS` map in `shared.js`, keyed by the scraped `school`
+  name — not admin-editable; a school missing from the map (or renamed
+  by MaxPreps) falls back to a plain outlined badge, and our own row uses
+  the header yellow via CSS instead of a map entry.
 - **Schedule page List/Calendar toggle**: `initSchedulePage` in `site.js`
   can render the same filtered games as either the month-grouped table
   (`renderTable`) or a month calendar grid (`buildCalendar`, read-only

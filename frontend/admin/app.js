@@ -1673,6 +1673,7 @@ const STANDINGS_FIELDS = [
 async function renderStandingsSection(container) {
   container.innerHTML = "";
   let rows = [];
+  let ourSchool = "";
 
   const head = el("div", { class: "admin-section-head" }, [
     el("div", {}, [
@@ -1762,26 +1763,45 @@ async function renderStandingsSection(container) {
       return;
     }
 
-    const columns = [
-      { label: "School", text: (r) => r.school || "", strong: true },
-      { label: "League W-L", text: (r) => r.league_record || "" },
-      { label: "League PCT", text: (r) => r.league_pct || "" },
-      { label: "Overall W-L", text: (r) => r.overall_record || "" },
-      { label: "Overall PCT", text: (r) => r.overall_pct || "" },
-      { label: "Streak", text: (r) => r.streak || "", flag: true },
-    ];
+    // Same layout as the public Standings page (initStandingsPage in
+    // site.js), built from the same shared.js helpers: sorted and ranked
+    // by compareStandingsRows/standingsPlaces, our row highlighted, win
+    // pct recomputed from W-L, point differentials and streaks colored.
+    // Sorting a copy keeps each row object's identity, so Edit/Delete
+    // below still find it in `rows` by reference.
+    const sorted = [...rows].sort(compareStandingsRows);
+    const places = standingsPlaces(sorted);
+    const usName = (ourSchool || "").toLowerCase();
 
-    const thead = el("thead", {}, [el("tr", {}, [...columns.map((c) => el("th", { text: c.label })), el("th", { style: "width:120px", text: "Actions" })])]);
+    const th = (text, attrs = {}) => el("th", { ...attrs, text });
+    const thead = el("thead", {}, [
+      el("tr", { class: "admin-standings-group-row" }, [
+        th("", { colspan: "2" }),
+        th("League", { colspan: "3", class: "group-start" }),
+        th("Overall", { colspan: "5", class: "group-start" }),
+        th("", { colspan: "2", class: "group-start" }),
+      ]),
+      el("tr", {}, [
+        th("#"),
+        th("School"),
+        th("W-L", { class: "group-start" }),
+        th("Pct"),
+        th("Diff", { title: "Points for minus points against" }),
+        th("W-L", { class: "group-start" }),
+        th("Pct"),
+        th("PF", { title: "Points for" }),
+        th("PA", { title: "Points against" }),
+        th("Diff", { title: "Points for minus points against" }),
+        th("Streak", { class: "group-start" }),
+        th("Actions", { style: "width:120px" }),
+      ]),
+    ]);
     const tbody = el("tbody");
-    rows.forEach((row) => {
-      const tds = columns.map((c) => {
-        const text = c.text(row);
-        const td = el("td", {});
-        if (c.flag && text) td.appendChild(el("span", { class: "tag tag-outline", text }));
-        else if (text) td.appendChild(el("span", { style: c.strong ? "font-family:var(--font-heading);font-size:17px" : "", text }));
-        else td.appendChild(el("span", { class: "admin-muted-cell", text: "—" }));
-        return td;
-      });
+    sorted.forEach((row, i) => {
+      const { place, tied } = places[i];
+      const leagueDiff = formatDiff(row.league_pf, row.league_pa);
+      const overallDiff = formatDiff(row.overall_pf, row.overall_pa);
+      const streak = parseStreak(row.streak);
       const actions = el("div", { class: "admin-actions" }, [
         el("button", { type: "button", class: "btn btn-secondary", text: "Edit" }).also((b) =>
           b.addEventListener("click", (e) => {
@@ -1804,12 +1824,35 @@ async function renderStandingsSection(container) {
           })
         ),
       ]);
-      const tr = el("tr", {}, [...tds, el("td", {}, [actions])]);
+      const isUs = usName && (row.school || "").toLowerCase() === usName;
+      const tr = el("tr", isUs ? { class: "admin-standings-us" } : {}, [
+        el("td", { class: "admin-standings-place", text: `${tied ? "T" : ""}${place}` }),
+        el("td", { class: "admin-standings-school" }, [
+          el("div", { class: "school-cell" }, [
+            el("span", { class: "school-badge", "aria-hidden": "true", style: schoolBadgeStyle(row.school), text: schoolInitials(row.school) }),
+            el("span", { text: row.school || "—" }),
+          ]),
+        ]),
+        el("td", { class: "admin-standings-record group-start", text: row.league_record || "0-0" }),
+        el("td", { text: formatPct(row.league_record) }),
+        el("td", { class: diffClass(leagueDiff), title: `PF ${row.league_pf || 0} · PA ${row.league_pa || 0}`, text: leagueDiff }),
+        el("td", { class: "admin-standings-record group-start", text: row.overall_record || "0-0" }),
+        el("td", { text: formatPct(row.overall_record) }),
+        el("td", { text: row.overall_pf || "0" }),
+        el("td", { text: row.overall_pa || "0" }),
+        el("td", { class: diffClass(overallDiff), text: overallDiff }),
+        el("td", { class: "group-start" }, [
+          streak
+            ? el("span", { class: `streak-badge ${streak.isWin ? "streak-badge--win" : "streak-badge--loss"}`, text: streak.label })
+            : el("span", { class: "admin-muted-cell", text: "—" }),
+        ]),
+        el("td", {}, [actions]),
+      ]);
       tr.addEventListener("click", () => openSchoolModal(row));
       tbody.appendChild(tr);
     });
 
-    tableBox.appendChild(el("div", { class: "admin-tbl-wrap" }, [el("table", { class: "admin-tbl" }, [thead, tbody])]));
+    tableBox.appendChild(el("div", { class: "admin-tbl-wrap" }, [el("table", { class: "admin-tbl admin-standings-tbl" }, [thead, tbody])]));
   }
 
   function paint(cache) {
@@ -1818,7 +1861,10 @@ async function renderStandingsSection(container) {
     paintTable();
   }
 
-  const cache = await apiFetch("/standings");
+  // The Logo Content Block's title is how the public site knows which
+  // standings row is "us" - same matching here, for the row highlight.
+  const [cache, blocks] = await Promise.all([apiFetch("/standings"), apiFetch("/content-blocks").catch(() => [])]);
+  ourSchool = (blocks || []).find((b) => b.generator === "Logo")?.title || "";
   paint(cache);
 }
 
