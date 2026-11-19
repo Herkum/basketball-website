@@ -131,6 +131,13 @@ resource "aws_s3_object" "static_files" {
   source       = "${local.frontend_dir}/${each.value}"
   etag         = filemd5("${local.frontend_dir}/${each.value}")
   content_type = lookup(local.content_types, regex("\\.[^.]+$", each.value), "application/octet-stream")
+  # HTML/JS/CSS have no build step or fingerprinted filenames, so without
+  # an explicit Cache-Control browsers heuristically cache them for hours
+  # and can pair a new site.js with a stale shared.js (this broke the
+  # Standings page right after a deploy). no-cache = always revalidate
+  # (a cheap 304 via ETag when unchanged), so a deploy is picked up on the
+  # very next page load.
+  cache_control = contains(keys(local.content_types), regex("\\.[^.]+$", each.value)) ? "no-cache" : null
 }
 
 # Injects deployed infra values (Cognito domain, client id, API base URL) into
@@ -146,7 +153,8 @@ resource "aws_s3_object" "admin_config" {
     logout_uri     = "https://${local.site_domain}/admin/index.html"
     site_origin    = "https://${local.site_domain}"
   })
-  content_type = "application/javascript"
+  content_type  = "application/javascript"
+  cache_control = "no-cache"
 }
 
 
@@ -159,7 +167,8 @@ resource "aws_s3_object" "public_config" {
     api_base    = trimsuffix(aws_apigatewayv2_stage.default.invoke_url, "/")
     site_origin = "https://${local.site_domain}"
   })
-  content_type = "application/javascript"
+  content_type  = "application/javascript"
+  cache_control = "no-cache"
 }
 
 resource "null_resource" "invalidate_cache" {
