@@ -87,10 +87,10 @@
   "Public site layout" in architecture.md), `generator` (dropdown —
   `CONTENT_BLOCK_GENERATORS` in `admin/app.js`: None/Coaches/Rosters/
   Schedule/News/Contact Us/Sponsors/Photos/Standings/Logo/Mission
-  Statement/Store/Sponsorships/Donate — which dedicated public page this
+  Statement/Store/Sponsorships/Donate/Games Online — which dedicated public page this
   block drives, see "Content Blocks → page mapping" in architecture.md;
   "Logo" doesn't drive a page, it's the sidebar's brand block, see
-  "Sidebar brand/record/footer" above; Store/Sponsorships/Donate render
+  "Sidebar brand/record/footer" above; Store/Sponsorships/Donate/Games Online render
   `body` as raw HTML rather than plain intro text, see same section),
   `league_name` (free text, admin form shows this field only when
   Generator is "Logo" — the league name shown in the sidebar footer and
