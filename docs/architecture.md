@@ -63,6 +63,12 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   system has no vertical-nav component, but "no filled blocks" still
   applies to whatever skins the existing sidebar/central-column
   structure (that structure itself predates this system and stays).
+  Deliberate exceptions, added on request because the sidebar/titles
+  blended into the grey background: the sidebar record box
+  (`.record-card`) and nav group headers (`.nav-group-label`) are solid
+  black bands with yellow text, matching the header bar; every page's
+  `#page-title` is a white plate with a black left bar and yellow
+  underline; `.section-heading h2` gets just the black left bar.
   `.plate` is adopted verbatim from the bundle: a sepia/desaturated
   filter (`sepia(0.22) saturate(0.82) contrast(1.05)`) plus a matted
   border, wrapped around every real photo (team/coach/news/gallery
