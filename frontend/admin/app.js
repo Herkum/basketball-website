@@ -1657,14 +1657,16 @@ async function renderScheduleSection(container) {
 
 const STANDINGS_FIELDS = [
   { key: "school", label: "School", type: "text", required: true, span: 2 },
-  { key: "rank", label: "Rank", type: "text", span: 1 },
-  { key: "streak", label: "Streak", type: "text", placeholder: "W3", span: 1 },
-  { key: "league_record", label: "League W-L", type: "text", placeholder: "8-2", span: 1 },
-  { key: "league_pct", label: "League PCT", type: "text", placeholder: "0.800", span: 1 },
+  // No Rank field either - places are computed from the records
+  // (standingsPlaces() in shared.js), not read from the scraped `rank`.
+  { key: "streak", label: "Streak", type: "text", placeholder: "3W", span: 2 },
+  // No PCT fields - win percentage is always computed from the W-L record
+  // (formatPct() in shared.js), so a stored league_pct/overall_pct (still
+  // written by the MaxPreps scrape) isn't displayed anywhere.
+  { key: "league_record", label: "League W-L", type: "text", placeholder: "8-2", span: 2 },
   { key: "league_pf", label: "League PF", type: "number", span: 1 },
   { key: "league_pa", label: "League PA", type: "number", span: 1 },
-  { key: "overall_record", label: "Overall W-L", type: "text", placeholder: "23-6", span: 1 },
-  { key: "overall_pct", label: "Overall PCT", type: "text", placeholder: "0.793", span: 1 },
+  { key: "overall_record", label: "Overall W-L", type: "text", placeholder: "23-6", span: 2 },
   { key: "overall_pf", label: "Overall PF", type: "number", span: 1 },
   { key: "overall_pa", label: "Overall PA", type: "number", span: 1 },
   { key: "link", label: "Link", type: "text", placeholder: "https://...", span: 2, help: "The school's own site — never scraped, preserved across refreshes." },
