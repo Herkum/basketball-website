@@ -585,6 +585,107 @@ main {
   color: var(--color-accent);
 }
 
+/* Games Online page - a lead paragraph, two link cards out to Hudl (the
+   varsity team page featured, the school-wide page secondary), a row of
+   what-you'll-find items, and a closing cross-link to the Schedule. Scoped
+   under .rich-text-html like the mission-* and sponsor-* classes above. */
+.rich-text-html .watch-lead {
+  font-size: 1.1rem;
+  max-width: 680px;
+  margin: 0 0 2rem;
+}
+
+.rich-text-html .watch-cards {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 1.5rem;
+  margin: 0 0 2.5rem;
+}
+
+.rich-text-html .watch-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+}
+
+.rich-text-html .watch-card--featured {
+  border-top: 3px solid var(--color-accent);
+}
+
+.rich-text-html .watch-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+/* Short card/feature copy - the site-wide justified body text leaves
+   rivers of whitespace at these narrow widths. */
+.rich-text-html .watch-card p,
+.rich-text-html .watch-features p {
+  text-align: left;
+}
+
+.rich-text-html .watch-card p {
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+}
+
+.rich-text-html .watch-button {
+  margin-top: auto;
+  align-self: flex-start;
+  padding: 0.5rem 1.1rem;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  color: var(--color-accent-700);
+  font-family: var(--font-heading);
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rich-text-html .watch-button:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.rich-text-html .watch-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.25rem;
+  margin: 1rem 0 2.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.rich-text-html .watch-features li {
+  border-top: 2px solid var(--color-accent);
+  padding-top: 0.6rem;
+  margin: 0;
+}
+
+.rich-text-html .watch-features h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+
+.rich-text-html .watch-features p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.rich-text-html .watch-closing {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  font-style: italic;
+}
+
+@media (max-width: 720px) {
+  .rich-text-html .watch-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 h1, h2, h3, .site-title {
   font-family: var(--font-heading);
   font-weight: var(--font-heading-weight);

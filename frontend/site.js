@@ -137,6 +137,7 @@ const GENERATOR_PAGES = {
   Store: "store.html",
   Sponsorships: "sponsorships.html",
   Donate: "donate.html",
+  "Games Online": "games-online.html",
 };
 
 // Sidebar nav is a fixed structure (Home/Store top-level, then three
@@ -151,9 +152,18 @@ const GENERATOR_PAGES = {
 const NAV_STRUCTURE = [
   { home: true },
   { generator: "Store" },
-  { group: "Media", items: ["News", "Photos", "Sponsors"] },
+  { group: "Media", items: ["News", "Photos", "Sponsors", "Games Online"] },
   { group: "Basketball", items: ["Schedule", "Standings", "Rosters", "Coaches"] },
-  { group: "Booster", items: ["Mission Statement", "Contact Us", "Sponsorships", "Donate"] },
+  {
+    group: "Booster",
+    items: [
+      { label: "Panther Team Store", href: "https://npbasketball.promo-ops.com/" },
+      "Mission Statement",
+      "Contact Us",
+      "Sponsorships",
+      "Donate",
+    ],
+  },
 ];
 
 function pageForGenerator(generator) {
@@ -296,6 +306,13 @@ async function initLayout() {
     if (entry.group) {
       navItems.push(el("div", { class: "nav-group-label", text: entry.group }));
       for (const generator of entry.items) {
+        // External link (no generator/page of its own) - opens in a new tab.
+        if (typeof generator === "object") {
+          navItems.push(
+            el("a", { href: generator.href, text: generator.label, target: "_blank", rel: "noopener", class: "sub-link" })
+          );
+          continue;
+        }
         const block = findBlockByGenerator(blocks, generator);
         const href = pageForGenerator(generator);
         const isRosters = generator === "Rosters";
@@ -359,6 +376,16 @@ function sectionDivider(title, children) {
 }
 
 async function initHomePage() {
+  // Page-specific fetches start before awaiting initLayout() (here and in
+  // every other initXPage) so they run alongside the layout's own fetches
+  // instead of waiting a full round-trip for them first.
+  const pageData = Promise.all([
+    siteFetch("/news"),
+    siteFetch("/sponsors").catch(() => []),
+    siteFetch(`/schedule/${defaultSeason()}`).catch(() => []),
+    siteFetch("/locations").catch(() => []),
+    fetchNewsPhotoIndex(),
+  ]);
   const { blocks, teams: rosters, contacts, standingsCache: standings } = await initLayout();
   const homeBlock = findBlock(blocks, "Home");
   const logoBlock = findBlockByGenerator(blocks, "Logo");
@@ -366,13 +393,7 @@ async function initHomePage() {
   const main = document.getElementById("page-content");
   main.appendChild(el("span", { class: "eyebrow", text: `${defaultSeason()} Season` }));
 
-  const [news, sponsors, allGames, locations, photosByPostId] = await Promise.all([
-    siteFetch("/news"),
-    siteFetch("/sponsors").catch(() => []),
-    siteFetch(`/schedule/${defaultSeason()}`).catch(() => []),
-    siteFetch("/locations").catch(() => []),
-    fetchNewsPhotoIndex(),
-  ]);
+  const [news, sponsors, allGames, locations, photosByPostId] = await pageData;
 
   const today = isoDate(new Date());
   const locationsById = Object.fromEntries(locations.map((l) => [l.location_id, l]));
@@ -643,9 +664,9 @@ async function initMissionPage() {
   }
 }
 
-// Store/Sponsorships/Donate are plain embed pages - the admin pastes raw
-// HTML (an embedded store widget, a payment-processor donate button/iframe,
-// a sponsorship pitch deck, etc.) straight into the block's Body field, so
+// Store/Sponsorships/Donate/Games Online are plain embed pages - the admin
+// pastes raw HTML (an embedded store widget, a payment-processor donate
+// button/iframe, a sponsorship pitch deck, links out to Hudl, etc.) straight into the block's Body field, so
 // unlike every other generator page this renders `body` as real HTML
 // (innerHTML) instead of text. Safe to do since only an authenticated
 // admin (gated by the write endpoints' permission check) can ever set it -
@@ -689,9 +710,16 @@ async function initRostersPage() {
 }
 
 async function initRosterDetailPage() {
+  const teamId = new URLSearchParams(window.location.search).get("team");
+  const pageData = teamId
+    ? Promise.all([
+        siteFetch(`/rosters/${encodeURIComponent(teamId)}`),
+        siteFetch(`/players/${encodeURIComponent(teamId)}`),
+        siteFetch("/coaches"),
+      ])
+    : null;
   await initLayout();
   const main = document.getElementById("page-content");
-  const teamId = new URLSearchParams(window.location.search).get("team");
 
   if (!teamId) {
     setPageTitle("Roster");
@@ -699,11 +727,7 @@ async function initRosterDetailPage() {
     return;
   }
 
-  const [team, players, coaches] = await Promise.all([
-    siteFetch(`/rosters/${encodeURIComponent(teamId)}`),
-    siteFetch(`/players/${encodeURIComponent(teamId)}`),
-    siteFetch("/coaches"),
-  ]);
+  const [team, players, coaches] = await pageData;
   const coachesById = Object.fromEntries(coaches.map((c) => [c.coach_id, c]));
   const coachNames = (team.coach_ids || []).map((id) => coachesById[id]?.name).filter(Boolean).join(", ");
 
@@ -814,6 +838,7 @@ async function initRosterDetailPage() {
 }
 
 async function initSchedulePage() {
+  const pageData = Promise.all([siteFetch(`/schedule/${defaultSeason()}`), siteFetch("/locations")]);
   const { blocks, teams, contacts } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Schedule");
   setPageTitle(intro?.title || "Schedule");
@@ -821,7 +846,7 @@ async function initSchedulePage() {
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
   const gymContact = contacts.find((c) => c.type === "Physical Address");
-  const [games, locations] = await Promise.all([siteFetch(`/schedule/${defaultSeason()}`), siteFetch("/locations")]);
+  const [games, locations] = await pageData;
   const locationsById = Object.fromEntries(locations.map((l) => [l.location_id, l]));
 
   // Schedule denormalizes a Location's name/address onto the game at save
@@ -1070,13 +1095,14 @@ Element.prototype.also = function (fn) {
 };
 
 async function initNewsPage() {
+  const pageData = Promise.all([siteFetch("/news"), fetchNewsPhotoIndex()]);
   const { blocks } = await initLayout();
   const intro = findBlockByGenerator(blocks, "News");
   setPageTitle(intro?.title || "News");
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
-  const [news, photosByPostId] = await Promise.all([siteFetch("/news"), fetchNewsPhotoIndex()]);
+  const [news, photosByPostId] = await pageData;
   const today = isoDate(new Date());
   // Events read nearest-date-first (what's coming up soonest matters
   // most); News reads newest-first (most recently announced first) - the
@@ -1124,13 +1150,14 @@ async function initNewsPage() {
 }
 
 async function initCoachesPage() {
+  const coachesPromise = siteFetch("/coaches");
   const { blocks, teams } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Coaches");
   setPageTitle(intro?.title || "Coaches");
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
-  const coaches = await siteFetch("/coaches");
+  const coaches = await coachesPromise;
   if (!coaches.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No coaches listed yet." }));
     return;
@@ -1361,13 +1388,14 @@ async function initContactPage() {
 const SPONSOR_TIERS = ["Banner", "Court", "Friend of the Program"];
 
 async function initSponsorsPage() {
+  const sponsorsPromise = siteFetch("/sponsors");
   const { blocks } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Sponsors");
   setPageTitle(intro?.title || "Sponsors");
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
-  const sponsors = await siteFetch("/sponsors");
+  const sponsors = await sponsorsPromise;
   if (!sponsors.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No sponsors listed yet." }));
     return;
@@ -1394,21 +1422,23 @@ async function initSponsorsPage() {
 }
 
 async function initPhotosPage() {
+  const albumsPromise = siteFetch("/albums");
+  const photosPromise = albumsPromise.then((albums) =>
+    Promise.all(albums.map((album) => siteFetch(`/photos/${encodeURIComponent(album.album_id)}`).catch(() => [])))
+  );
   const { blocks } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Photos");
   setPageTitle(intro?.title || "Photos");
   const main = document.getElementById("page-content");
   if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
 
-  const albums = await siteFetch("/albums");
+  const albums = await albumsPromise;
   if (!albums.length) {
     main.appendChild(el("p", { class: "empty-state", text: "No photos yet." }));
     return;
   }
 
-  const photosByAlbum = await Promise.all(
-    albums.map((album) => siteFetch(`/photos/${encodeURIComponent(album.album_id)}`).catch(() => []))
-  );
+  const photosByAlbum = await photosPromise;
 
   albums.forEach((album, i) => {
     const photos = photosByAlbum[i];

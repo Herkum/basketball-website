@@ -630,7 +630,7 @@ function openModal({ title, blurb, fields, initialValues, saveLabel, footnote, v
 /* ============================= Option lists ============================ */
 
 const PLAYER_YEARS = ["Freshman", "Sophomore", "Junior", "Senior"];
-const CONTENT_BLOCK_GENERATORS = ["", "Coaches", "Rosters", "Schedule", "News", "Contact Us", "Sponsors", "Photos", "Standings", "Logo", "Mission Statement", "Store", "Sponsorships", "Donate"];
+const CONTENT_BLOCK_GENERATORS = ["", "Coaches", "Rosters", "Schedule", "News", "Contact Us", "Sponsors", "Photos", "Standings", "Logo", "Mission Statement", "Store", "Sponsorships", "Donate", "Games Online"];
 const CONTACT_TYPES = ["Email", "Physical Address", "Instagram", "Phone", "Website"];
 const CONTACT_KINDS = ["Program", "School", "Boosters", "Social"];
 const SPONSOR_TIERS = ["Banner", "Court", "Friend of the Program"];

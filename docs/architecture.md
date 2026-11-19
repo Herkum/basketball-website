@@ -11,7 +11,7 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
 - **Frontend**: plain HTML/JS/CSS, no build step, no framework, no bundler.
   Public site pages live at `frontend/` root (`index.html`, `rosters.html`,
   `roster.html`, `schedule.html`, `news.html`, `coaches.html`,
-  `contact.html`, `sponsors.html`, `photos.html`, `standings.html`,
+  `contact.html`, `sponsors.html`, `photos.html`, `standings.html`, `games-online.html`,
   `mission.html`) sharing `site.js`/
   `site.css`; `frontend/admin/` is the separate admin SPA with its own
   `app.js`/`style.css`.
@@ -30,7 +30,10 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   are top-level links, then three hardcoded group headers (Media,
   Basketball, Booster) each list a fixed set of generators as indented
   sub-links (`.sub-link`), Rosters' per-team links nesting one level
-  deeper still (`.sub-link--team`). Each link's own label still comes from
+  deeper still (`.sub-link--team`). A group item can also be a
+  plain `{label, href}` object instead of a generator name — an external
+  link with no page/Content Block of its own, opened in a new tab (Booster's
+  "Panther Team Store", which points at the promo-ops.com store). Each link's own label still comes from
   its Content Block's `title` (falling back to the generator's own name if
   that block doesn't exist yet, e.g. before Store/Sponsorships/Donate are
   created in the admin) so the admin can rename any page freely — only the
@@ -166,11 +169,12 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   to `index.html`). Blocks with no generator (`Home`) are plain text
   sections rendered only on the home page, still looked up there by title
   via `findBlock(blocks, title)` since there's no dedicated page for them
-  to be a generator of. Store/Sponsorships/Donate are the one exception to
+  to be a generator of. Store/Sponsorships/Donate/Games Online are the one exception to
   "renders `body` as the page's intro" — `initHtmlBlockPage()` renders
   their `body` as raw HTML (`innerHTML`, not text) instead, since those
-  three are meant to hold an admin-pasted embed (a store widget, a
-  donate button/iframe, a sponsorship pitch) rather than plain copy.
+  four are meant to hold an admin-pasted embed (a store widget, a
+  donate button/iframe, a sponsorship pitch, links out to the school's
+  Hudl broadcast pages) rather than plain copy.
 - **Rosters get their own sidebar entries + pages**: `initLayout()` also
   fetches `/rosters` and, right after the "Rosters" sidebar link, injects
   one indented sub-link per team (`.sub-link` in `site.css`) pointing at
