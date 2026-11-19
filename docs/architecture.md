@@ -137,15 +137,17 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   the News feed moved in ahead of it, so it's now stat row → News → body
   text → standings. Mission Statement is **not** shown on Home at all
   anymore — it has its own dedicated page (see Content Blocks → page
-  mapping). The standings section (last on the page) shows the **full**
-  `/standings` list (not a top-N teaser), sorted by
-  `compareStandingsRows()` (best League record first, Overall record as
-  the tiebreaker — parsed from the scraped "W-L" strings — since the
-  scraped `rank` field isn't used anywhere on this site), with no Rank
-  column, and highlights whichever row's `school` matches the Logo
-  block's `title` (`.standings-row-us`) — this is how the site knows "the
-  row for us" without a separate flag on the scraped data. Its heading
-  uses the Logo block's `league_name` with a "Varsity Standings" eyebrow.
+  mapping). Below the body text, a two-column `.home-split` row (stacks
+  on narrow screens) holds two `.home-card`s: on the left an
+  **abbreviated** standings table (`.standings-mini` — School + Overall
+  W/L only, sorted best overall record first with
+  `compareStandingsRows()` as the tiebreaker, shield badges via
+  `schoolBadgeStyle()`/`schoolInitials()`, our row highlighted by Logo
+  block `title` match, "Full standings →" to `standings.html`), headed by
+  the Logo block's `league_name`; on the right a "Sponsor Spotlight" — one
+  sponsor picked at random on each page load (name, tier, `kind`,
+  website link, "All sponsors →"). The full sponsor name strip still
+  follows below it.
 - **Standings page + admin League Standings table**: `initStandingsPage`
   (`site.js`) and the admin's `renderStandingsSection` (`admin/app.js`)
   render the same table layout from the same helpers in `shared.js`
