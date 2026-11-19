@@ -208,37 +208,55 @@ a {
   margin-top:     0.2rem;
 }
 
+/* Sidebar W-L record: a dark card in the header's black/yellow palette
+   so it stands out against the grey sidebar instead of blending in as a
+   hairline outline. */
+.record-card {
+  margin: 0 1rem 1rem;
+  background: var(--color-black);
+  border-top: 3px solid var(--color-yellow-dk);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 0.55rem 0 0.7rem;
+}
+
 .record-box-label {
-  margin: 0 1.5rem 0.35rem;
   text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-brown-lt);
+  margin-bottom: 0.35rem;
 }
 
 .record-box {
   display: flex;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  margin: 0 1.5rem 0.5rem;
-  overflow: hidden;
 }
 
 .record-col {
   flex: 1;
   text-align: center;
-  padding: 0.6rem 0.5rem;
+  padding: 0.1rem 0.5rem;
 }
 
 .record-col + .record-col {
-  border-left: 1px solid var(--border);
+  border-left: 1px solid color-mix(in srgb, var(--color-white) 18%, transparent);
 }
 
 .record-value {
   font-family: var(--font-heading);
-  font-size: 1.4rem;
+  font-size: 2rem;
+  font-weight: 700;
   line-height: 1;
+  color: var(--color-yellow-dk);
 }
 
-.record-col .eyebrow {
-  margin: 0.3rem 0 0;
+.record-col-label {
+  margin-top: 0.3rem;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-white) 75%, transparent);
 }
 
 /* Sits below .layout (see any page's HTML), not inside #site-sidebar -
@@ -310,12 +328,19 @@ a {
   padding-left: 2rem;
 }
 
+/* Group headers (Media/Basketball/Booster) as dark bands in the header's
+   black/yellow palette, matching the record card, so the sections read
+   as distinct blocks instead of blending into the link list. */
 .nav-group-label {
-  padding: 0.25rem 0.75rem 0.25rem;
-  font-size: 1rem;
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  background: var(--color-black);
+  color: var(--color-yellow-dk);
+  border-left: 3px solid var(--color-yellow-dk);
 }
 
 /* Auto left/right margins here used to make main a flex item with
@@ -335,11 +360,24 @@ main {
   width: 100%;
 }
 
-/* Home page only (see the .home-page class on index.html's <body>) -
-   #page-title is shared markup across every page, so this can't just be
-   an #page-title rule without affecting every other page's header too. */
+/* Every page's <h1> - a white plate with a black left bar and yellow
+   underline, so the title stands off the grey page background without
+   copying the sidebar's solid black group-header bands. */
 #page-title {
-  padding-left: 1rem;
+  background: var(--color-white);
+  border-left: 6px solid var(--color-black);
+  border-bottom: 3px solid var(--color-yellow-dk);
+  border-radius: 0 var(--radius-md) 0 0;
+  box-shadow: var(--shadow-sm);
+  padding: 0.35rem 1rem 0.3rem;
+  /* side margins match div#page-content's 1rem padding so the plate
+     lines up with the content below it */
+  margin: 1.25rem 1rem 0;
+}
+
+/* Filled in by JS - don't flash an empty plate before it loads. */
+#page-title:empty {
+  display: none;
 }
 
 .page-intro {
@@ -796,8 +834,13 @@ div#page-content > span.eyebrow {
   margin: 2rem 0 1rem;
 }
 
+/* In-page section headings: a lighter echo of #page-title - just the
+   black left bar, no plate - so sections stand out without competing
+   with the page title itself. */
 .section-heading h2 {
   margin: 0;
+  border-left: 4px solid var(--color-black);
+  padding-left: 0.6rem;
 }
 
 .section-divider {

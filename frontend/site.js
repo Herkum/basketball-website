@@ -255,16 +255,18 @@ async function initLayout() {
     ? (standingsCache?.rows || []).find((r) => (r.school || "").toLowerCase() === (logoBlock.title || "").toLowerCase())
     : null;
   if (ourStandingsRow) {
-    sidebar.appendChild(el("span", { class: "eyebrow record-box-label", text: "Varsity" }));
     sidebar.appendChild(
-      el("div", { class: "record-box" }, [
-        el("div", { class: "record-col" }, [
-          el("div", { class: "record-value nums", text: ourStandingsRow.overall_record || "" }),
-          el("div", { class: "eyebrow", text: "Overall" }),
-        ]),
-        el("div", { class: "record-col" }, [
-          el("div", { class: "record-value nums", text: ourStandingsRow.league_record || "" }),
-          el("div", { class: "eyebrow", text: "League" }),
+      el("div", { class: "record-card" }, [
+        el("div", { class: "record-box-label", text: "Varsity Record" }),
+        el("div", { class: "record-box" }, [
+          el("div", { class: "record-col" }, [
+            el("div", { class: "record-value nums", text: ourStandingsRow.overall_record || "" }),
+            el("div", { class: "record-col-label", text: "Overall" }),
+          ]),
+          el("div", { class: "record-col" }, [
+            el("div", { class: "record-value nums", text: ourStandingsRow.league_record || "" }),
+            el("div", { class: "record-col-label", text: "League" }),
+          ]),
         ]),
       ])
     );
