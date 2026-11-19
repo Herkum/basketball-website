@@ -146,8 +146,8 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   block `title` match, "Full standings →" to `standings.html`), headed by
   the Logo block's `league_name`; on the right a "Sponsor Spotlight" — one
   sponsor picked at random on each page load (name, tier, `kind`,
-  website link, "All sponsors →"). The full sponsor name strip still
-  follows below it.
+  website link, "All sponsors →"). This replaced the old full sponsor
+  name strip, which is no longer on Home (`sponsors.html` lists them all).
 - **Standings page + admin League Standings table**: `initStandingsPage`
   (`site.js`) and the admin's `renderStandingsSection` (`admin/app.js`)
   render the same table layout from the same helpers in `shared.js`

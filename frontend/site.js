@@ -617,25 +617,6 @@ async function initHomePage() {
     );
   }
   if (homeCards.length) main.appendChild(el("div", { class: "home-split section-divider" }, homeCards));
-
-  if (sponsors.length) {
-    const sortedSponsors = [...sponsors].sort((a, b) => {
-      const tierDiff = SPONSOR_TIERS.indexOf(a.tier) - SPONSOR_TIERS.indexOf(b.tier);
-      return tierDiff !== 0 ? tierDiff : (a.name || "").localeCompare(b.name || "");
-    });
-    main.appendChild(
-      sectionDivider("Sponsors", [
-        el(
-          "p",
-          { class: "sponsors" },
-          sortedSponsors.flatMap((s, i) => [
-            i > 0 ? document.createTextNode(" · ") : null,
-            s.website ? el("a", { href: s.website, target: "_blank", text: s.name || "" }) : el("span", { text: s.name || "" }),
-          ].filter(Boolean))
-        ),
-      ])
-    );
-  }
 }
 
 // Renders `body` as real HTML (innerHTML), not plain text - the Mission
