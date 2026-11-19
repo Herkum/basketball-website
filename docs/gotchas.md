@@ -43,3 +43,15 @@
   the whole tab, including for browser automation tools. The admin's
   `openConfirm()` dialog and inline `dialog-error`/field-level error text
   replace every native browser prompt.
+- **Static files must keep `Cache-Control: no-cache`**: there's no build
+  step or fingerprinted filenames, so without an explicit header browsers
+  heuristically cache HTML/JS/CSS for hours. After a deploy that moved the
+  standings helpers from `site.js` into `shared.js`, a browser paired the
+  new `site.js` with its stale cached `shared.js` and the live Standings
+  table silently failed to render. `infra/s3_site.tf` sets
+  `cache_control = "no-cache"` on every `.html`/`.js`/`.css` object (and
+  both rendered `config.js` objects) — browsers revalidate on each load
+  (a cheap ETag 304 when unchanged). Don't drop it, and keep any new
+  file type that pages load as code in `local.content_types` so it gets
+  the header too. The local dev server should likewise send `no-store`
+  (plain `python3 -m http.server` doesn't).
