@@ -1690,6 +1690,8 @@ async function renderStandingsSection(container) {
   container.appendChild(toolsBox);
   const tableBox = el("div", {});
   container.appendChild(tableBox);
+  const rankingsBox = el("div", {});
+  container.appendChild(rankingsBox);
 
   async function persistRows(newRows) {
     const fresh = await apiFetch("/standings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows: newRows }) });
@@ -1863,11 +1865,74 @@ async function renderStandingsSection(container) {
     paintTable();
   }
 
+  // Regional Rankings (the public Regional Leagues page) refresh. A scrape
+  // takes minutes, so POST /rankings only starts it in the background and
+  // returns 202; while `refresh_started_at` is set we poll GET /rankings
+  // until the run finishes, stopping once this section is navigated away.
+  let rankingsPoll = null;
+  function paintRankings(r) {
+    rankingsBox.innerHTML = "";
+    clearTimeout(rankingsPoll);
+    const running = Boolean(r?.refresh_started_at);
+    const updatedText = r?.updated_at ? `Last updated ${new Date(r.updated_at * 1000).toLocaleString()}` : "Never refreshed yet";
+    const statusText = running
+      ? `Refresh running since ${new Date(r.refresh_started_at * 1000).toLocaleTimeString()} — this usually takes a few minutes.`
+      : "Refreshes automatically every morning. Refresh now to pick up last night's scores sooner.";
+    const btn = el("button", { type: "button", class: "btn btn-secondary", text: running ? "Refreshing…" : "Refresh rankings" });
+    btn.disabled = running;
+    const errorEl = el("p", { class: "admin-help", style: "color:#8c2f21" });
+    errorEl.hidden = true;
+
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Starting…";
+      errorEl.hidden = true;
+      try {
+        const res = await apiFetch("/rankings", { method: "POST" });
+        if (res && res.error && !res.refresh_started_at) throw new Error(res.error);
+        showToast(res?.error ? "A refresh is already running" : "Rankings refresh started");
+        paintRankings({ ...r, refresh_started_at: res.refresh_started_at });
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Refresh rankings";
+        errorEl.textContent = `Refresh failed to start: ${err.message}`;
+        errorEl.hidden = false;
+      }
+    });
+
+    rankingsBox.appendChild(el("h2", { class: "admin-subhead", text: "Regional Rankings", style: "margin:32px 0 0" }));
+    rankingsBox.appendChild(
+      el("div", { class: "admin-standings-tools" }, [
+        el("p", { class: "admin-help", style: "flex:1;min-width:260px;margin:0;padding-bottom:9px", text: statusText }),
+        btn,
+        el("div", { class: "admin-standings-updated", text: updatedText }),
+      ])
+    );
+    rankingsBox.appendChild(errorEl);
+
+    if (running) {
+      rankingsPoll = setTimeout(async () => {
+        if (!rankingsBox.isConnected) return;
+        const fresh = await apiFetch("/rankings").catch(() => null);
+        if (!rankingsBox.isConnected) return;
+        if (fresh && !fresh.refresh_started_at && running) {
+          showToast(fresh.updated_at !== r?.updated_at ? "Rankings refreshed" : "Rankings refresh finished without new results — check CloudWatch logs");
+        }
+        paintRankings(fresh || r);
+      }, 20000);
+    }
+  }
+
   // The Logo Content Block's title is how the public site knows which
   // standings row is "us" - same matching here, for the row highlight.
-  const [cache, blocks] = await Promise.all([apiFetch("/standings"), apiFetch("/content-blocks").catch(() => [])]);
+  const [cache, blocks, rankings] = await Promise.all([
+    apiFetch("/standings"),
+    apiFetch("/content-blocks").catch(() => []),
+    apiFetch("/rankings").catch(() => null),
+  ]);
   ourSchool = (blocks || []).find((b) => b.generator === "Logo")?.title || "";
   paint(cache);
+  paintRankings(rankings);
 }
 
 /* ======================= Rosters (with Players drill) =================== */

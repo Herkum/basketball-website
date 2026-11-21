@@ -291,7 +291,7 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   `rankings`, and `uploads` are the exceptions to this pattern — all are
   singleton actions (not a keyed list of entities), so they get bespoke
   integration/route blocks in `api.tf` instead (`GET`/`POST /standings`,
-  `GET /rankings`, `POST /uploads`) while still reusing the generic
+  `GET`/`POST /rankings`, `POST /uploads`) while still reusing the generic
   `local.functions`/`aws_lambda_function.function` mechanism for their
   actual Lambda deployment.
 - **Rosters/Players**: `rosters` is team-level (name, photo, drag-order,

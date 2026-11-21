@@ -5,10 +5,14 @@ through common opponents.
 
 Like `standings`, this is a screen-scraper, not CRUD: `GET` (public) serves
 the cached result instantly, and a direct/EventBridge invoke (no
-`requestContext`) does the actual scrape + recompute. There's deliberately
-no API-triggered refresh - a full scrape fetches anywhere from ~100 to a
-few hundred MaxPreps pages (see "outside opponents" in `_refresh`) and
-takes minutes, far past API Gateway's 30s integration timeout.
+`requestContext`) does the actual scrape + recompute. A full scrape fetches
+anywhere from ~100 to a few hundred MaxPreps pages (see "outside opponents"
+in `_refresh`) and takes minutes, far past API Gateway's 30s integration
+timeout - so the admin's `POST` (JWT) doesn't scrape itself: it re-invokes
+this same function asynchronously (`InvocationType="Event"`) and returns
+202 right away. A `"refresh"` lock row (`started_at`) keeps a second POST
+from starting an overlapping scrape while one is running; `GET` reports it
+as `refresh_started_at` so the admin can show progress.
 """
 
 import json
@@ -24,8 +28,16 @@ import boto3
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
+users_table = dynamodb.Table(os.environ["USERS_TABLE_NAME"])
+lambda_client = boto3.client("lambda")
 
 CACHE_ID = "current"
+REFRESH_LOCK_ID = "refresh"
+REQUIRED_PERMISSION = "Edit Season"
+# A lock older than this is from a run that died without clearing it (the
+# Lambda's own 900s timeout kills it before the `finally` runs), so a new
+# POST may take it over.
+REFRESH_LOCK_STALE_SECONDS = 16 * 60
 MAXPREPS = "https://www.maxpreps.com"
 
 # One member school per tracked league. Each refresh follows that school's
@@ -607,13 +619,66 @@ def _refresh(deadline):
     return item
 
 
+def _caller_permissions(event):
+    claims = ((event.get("requestContext") or {}).get("authorizer") or {}).get("jwt", {}).get("claims", {})
+    email = (claims.get("email") or "").lower()
+    if not email:
+        return set()
+    item = users_table.get_item(Key={"email": email}).get("Item")
+    if item is None:
+        return set()
+    permissions = item.get("permissions")
+    if permissions is None:
+        return {"Admin"}
+    return set(permissions)
+
+
+def _take_refresh_lock():
+    """Atomically claim the refresh lock; False if a live run holds it."""
+    now = int(time.time())
+    try:
+        table.put_item(
+            Item={"cache_id": REFRESH_LOCK_ID, "started_at": now},
+            ConditionExpression="attribute_not_exists(cache_id) OR started_at < :stale",
+            ExpressionAttributeValues={":stale": now - REFRESH_LOCK_STALE_SECONDS},
+        )
+        return True
+    except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
+        return False
+
+
+def _start_async_refresh(event):
+    perms = _caller_permissions(event)
+    if "Admin" not in perms and REQUIRED_PERMISSION not in perms:
+        return _response(403, {"error": "forbidden"})
+    if not _take_refresh_lock():
+        lock = table.get_item(Key={"cache_id": REFRESH_LOCK_ID}).get("Item") or {}
+        return _response(409, {"error": "a refresh is already running", "refresh_started_at": lock.get("started_at")})
+    try:
+        lambda_client.invoke(
+            FunctionName=os.environ["AWS_LAMBDA_FUNCTION_NAME"],
+            InvocationType="Event",
+            Payload=json.dumps({"source": "admin"}).encode(),
+        )
+    except Exception as exc:
+        table.delete_item(Key={"cache_id": REFRESH_LOCK_ID})
+        return _response(502, {"error": f"could not start refresh: {exc}"})
+    return _response(202, {"refresh_started_at": int(time.time())})
+
+
 def handler(event, context):
-    # Direct/EventBridge invoke (no requestContext) = refresh. Let failures
-    # raise so they show up as Lambda errors in CloudWatch rather than
-    # returning a 200-shaped error nobody reads.
+    # Direct/EventBridge/async-from-POST invoke (no requestContext) =
+    # refresh. Let failures raise so they show up as Lambda errors in
+    # CloudWatch rather than returning a 200-shaped error nobody reads.
     if "requestContext" not in event:
         remaining = context.get_remaining_time_in_millis() / 1000 if context else 900
-        item = _refresh(time.time() + remaining - OUTSIDE_SCRAPE_RESERVE_SECONDS)
+        # Hold the lock for the whole run (a scheduled run takes it too, so
+        # an admin POST during it is refused rather than overlapping).
+        table.put_item(Item={"cache_id": REFRESH_LOCK_ID, "started_at": int(time.time())})
+        try:
+            item = _refresh(time.time() + remaining - OUTSIDE_SCRAPE_RESERVE_SECONDS)
+        finally:
+            table.delete_item(Key={"cache_id": REFRESH_LOCK_ID})
         return {
             "teams": len(item["teams"]),
             "games": item["game_count"],
@@ -624,7 +689,13 @@ def handler(event, context):
 
     method = event["requestContext"]["http"]["method"]
     if method == "GET":
-        item = table.get_item(Key={"cache_id": CACHE_ID}).get("Item")
-        return _response(200, item or {"updated_at": None, "teams": []})
+        item = table.get_item(Key={"cache_id": CACHE_ID}).get("Item") or {"updated_at": None, "teams": []}
+        lock = table.get_item(Key={"cache_id": REFRESH_LOCK_ID}).get("Item")
+        if lock and lock["started_at"] >= int(time.time()) - REFRESH_LOCK_STALE_SECONDS:
+            item["refresh_started_at"] = lock["started_at"]
+        return _response(200, item)
+
+    if method == "POST":
+        return _start_async_refresh(event)
 
     return _response(400, {"error": "unsupported request"})

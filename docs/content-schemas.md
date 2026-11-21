@@ -246,18 +246,28 @@
   tracked teams are ranked or returned; `game_count` counts games
   involving a tracked team, `rated_game_count`/`rated_team_count`
   everything in the solve. `GET /rankings` (public) serves
-  the cache; a refresh runs only from the daily EventBridge rule
-  (`cron(0 12 * * ? *)`, `infra/api.tf`) or `aws lambda invoke
-  --function-name basketball-website-rankings --payload '{}' out.json` —
-  no API refresh route, since a full scrape (~100 pages early season, a
-  few hundred late; minutes) outlasts API Gateway's 30s timeout. A refresh where more than half the schedule
+  the cache; a refresh runs from the daily EventBridge rule
+  (`cron(0 12 * * ? *)`, `infra/api.tf`), `aws lambda invoke
+  --function-name basketball-website-rankings --payload '{}' out.json`, or
+  the admin's "Refresh rankings" button (Season → League Standings, under
+  the standings table). A full scrape (~100 pages early season, a few
+  hundred late; minutes) outlasts API Gateway's 30s timeout, so `POST
+  /rankings` (JWT, `Edit Season`) doesn't scrape in-request: it re-invokes
+  the same Lambda asynchronously and returns 202. A `"refresh"` lock row
+  (`started_at`, taken with a conditional put; held by every refresh
+  including the scheduled one, cleared in a `finally`, considered stale
+  after 16 min in case a run is killed at the 900s timeout) makes a second
+  POST return 409 instead of starting an overlapping scrape. `GET` adds
+  `refresh_started_at` while a run is live, and the admin polls on that
+  until it clears. Async retries are off (`maximum_retry_attempts = 0`),
+  so a failed refresh doesn't immediately re-scrape twice more. A refresh where more than half the schedule
   scrapes fail raises instead of overwriting the cache. Each team also
   carries MaxPreps' own league-table numbers (`league_record`/`league_pf`/
   `league_pa`/`overall_record`/`overall_pf`/`overall_pa`/`streak`, same
   shape as `Standings` rows) alongside `record`, which is computed from the
   scraped games the ratings use — the two can differ slightly. Read by the
-  public Regional Leagues page (see architecture.md); the admin doesn't
-  read it. Teams also carry `address`/`lat`/`lng` for the School Map tab:
+  public Regional Leagues page (see architecture.md); the admin reads
+  only `updated_at`/`refresh_started_at`, for its refresh panel. Teams also carry `address`/`lat`/`lng` for the School Map tab:
   the street address is the first schema.org `PostalAddress` JSON-LD
   block on the team's MaxPreps schedule page (already fetched — later
   blocks are opponents'), geocoded with OpenStreetMap's Nominatim

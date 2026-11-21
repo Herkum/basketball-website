@@ -156,9 +156,9 @@ resource "aws_apigatewayv2_route" "item_routes" {
   api_id    = aws_apigatewayv2_api.admin.id
   route_key = "${each.value.method} ${each.value.path}"
 
-  target              = "integrations/${aws_apigatewayv2_integration.function_integration[each.value.function_key].id}"
-  authorization_type  = each.value.public ? "NONE" : "JWT"
-  authorizer_id       = each.value.public ? null : aws_apigatewayv2_authorizer.cognito.id
+  target             = "integrations/${aws_apigatewayv2_integration.function_integration[each.value.function_key].id}"
+  authorization_type = each.value.public ? "NONE" : "JWT"
+  authorizer_id      = each.value.public ? null : aws_apigatewayv2_authorizer.cognito.id
 }
 
 resource "aws_apigatewayv2_route" "list_routes" {
@@ -166,9 +166,9 @@ resource "aws_apigatewayv2_route" "list_routes" {
   api_id    = aws_apigatewayv2_api.admin.id
   route_key = "${each.value.method} ${each.value.path}"
 
-  target              = "integrations/${aws_apigatewayv2_integration.function_integration[each.value.function_key].id}"
-  authorization_type  = each.value.public ? "NONE" : "JWT"
-  authorizer_id       = each.value.public ? null : aws_apigatewayv2_authorizer.cognito.id
+  target             = "integrations/${aws_apigatewayv2_integration.function_integration[each.value.function_key].id}"
+  authorization_type = each.value.public ? "NONE" : "JWT"
+  authorizer_id      = each.value.public ? null : aws_apigatewayv2_authorizer.cognito.id
 }
 
 resource "aws_apigatewayv2_integration" "uploads" {
@@ -243,9 +243,11 @@ resource "aws_apigatewayv2_route" "standings_put" {
   authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
-# Regional rankings: another singleton cache like standings, but GET-only -
-# a refresh scrapes ~70 pages and outlasts API Gateway's 30s timeout, so
-# it's driven by the EventBridge schedule below instead of an API route.
+# Regional rankings: another singleton cache like standings. A refresh
+# scrapes ~100-300 pages and outlasts API Gateway's 30s timeout, so it runs
+# from the daily EventBridge schedule below, or from POST /rankings - which
+# only re-invokes the Lambda asynchronously and returns 202 (see the
+# handler's docstring).
 resource "aws_apigatewayv2_integration" "rankings" {
   api_id                 = aws_apigatewayv2_api.admin.id
   integration_type       = "AWS_PROXY"
@@ -267,6 +269,41 @@ resource "aws_apigatewayv2_route" "rankings_get" {
 
   target             = "integrations/${aws_apigatewayv2_integration.rankings.id}"
   authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "rankings_post" {
+  api_id    = aws_apigatewayv2_api.admin.id
+  route_key = "POST /rankings"
+
+  target             = "integrations/${aws_apigatewayv2_integration.rankings.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+# POST /rankings starts the refresh by invoking the function on itself
+# asynchronously. ARN built by name rather than referencing the function
+# resource, which would make the role policy depend on the function that
+# already depends on the role.
+resource "aws_iam_role_policy" "rankings_self_invoke" {
+  name = "${var.project_name}-rankings-self-invoke"
+  role = aws_iam_role.function_role["rankings"].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "lambda:InvokeFunction"
+      Resource = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-rankings"
+    }]
+  })
+}
+
+# Async invokes (EventBridge and POST /rankings) would otherwise be retried
+# twice on failure - each a multi-minute, few-hundred-page MaxPreps scrape.
+# A failed refresh just waits for the next one instead.
+resource "aws_lambda_function_event_invoke_config" "rankings" {
+  function_name          = aws_lambda_function.function["rankings"].function_name
+  maximum_retry_attempts = 0
 }
 
 # Daily refresh at 12:00 UTC (4am PST / 5am PDT) - after the previous
