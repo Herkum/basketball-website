@@ -46,6 +46,16 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   (every generator in `NAV_STRUCTURE` always gets a link); it's still
   surfaced in the admin as a search-engine NoIndex hint, just no longer
   tied to nav visibility.
+- **Phone widths (≤720px)**: the sidebar (record box + nav) is hidden
+  behind a "Menu" button that `initNavToggle()` (`site.js`, called from
+  `initLayout()`) appends to `.site-header-inner` — toggling
+  `body.nav-open` shows it as a full-width panel under the header.
+  Stacked above the page instead (the old behavior), it pushed every
+  page's content more than a full phone screen down. Wide tables
+  (Schedule, a roster's Players, Standings, Regional Leagues) sit in a
+  `.table-scroll` wrapper so they scroll inside their own box rather than
+  widening the page; justified paragraphs fall back to left-aligned. Any
+  new page-level `<table>` should get the same wrapper.
 - **Public site visual style**: follows the real "Classical" design
   system (`designer/classical-dcb8c44c-cb34-4501-a2e9-cf858d85b40d/`,
   see its `readme.md` for the full spec) rather than an earlier guess —
