@@ -58,6 +58,17 @@ locals {
       # 10s other resources' simple DynamoDB CRUD calls get.
       timeout = 20
     }
+    rankings = {
+      dir        = "rankings"
+      table_arn  = aws_dynamodb_table.rankings.arn
+      table_name = aws_dynamodb_table.rankings.name
+      # scrapes ~100 MaxPreps pages per refresh early in the season and a
+      # few hundred late (tracked teams + their outside opponents'
+      # schedules) - see backend/functions/rankings/handler.py, which stops
+      # starting outside scrapes 2 min before this limit. 900s is Lambda's
+      # max.
+      timeout = 900
+    }
     locations = {
       dir        = "locations"
       table_arn  = aws_dynamodb_table.locations.arn

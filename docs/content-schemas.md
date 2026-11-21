@@ -86,7 +86,7 @@
   search-engine NoIndex hint; no longer controls sidebar inclusion, see
   "Public site layout" in architecture.md), `generator` (dropdown —
   `CONTENT_BLOCK_GENERATORS` in `admin/app.js`: None/Coaches/Rosters/
-  Schedule/News/Contact Us/Sponsors/Photos/Standings/Logo/Mission
+  Schedule/News/Contact Us/Sponsors/Photos/Standings/Regional Leagues/Logo/Mission
   Statement/Store/Sponsorships/Donate/Games Online — which dedicated public page this
   block drives, see "Content Blocks → page mapping" in architecture.md;
   "Logo" doesn't drive a page, it's the sidebar's brand block, see
@@ -208,6 +208,80 @@
   using the last saved `source_url` — no scheduled trigger exists yet
   (refresh is manual-only for now), this just means adding one later
   needs no handler changes.
+- `Rankings` (PK `cache_id`, two singleton rows): regional power
+  rankings across a fixed set of MaxPreps leagues (`TRACKED_LEAGUES` in
+  `backend/functions/rankings/handler.py` — Marmonte, Coastal Canyon,
+  Channel, Citrus Coast, Tri-Valley, Frontier, Mission, Gold Coast, West
+  Valley, Valley Mission), so teams that never meet can still be ranked via
+  common opponents. Each league is found through one *seed school*'s
+  standings page rather than a hardcoded `leagueid` URL, so a new season
+  needs no code change; a seed that lands in a different league slug is
+  reported in `warnings`, not silently followed. The `"current"` row holds
+  `teams` (tracked teams only: `name`, `league`, `section`, `record`,
+  `games`, `avg_margin`, `sos`, `srs`/`srs_rank`, `url`),
+  `leagues`, `settings`, `game_count`, `updated_at`, `warnings`. The
+  `"games"` row holds every scraped game in a compact list-of-lists form
+  (see the handler) for debugging/recomputing — trimmed to games involving
+  a tracked team (and marked `truncated`) if the full set would near
+  DynamoDB's 400KB item limit. One rating, capping each game's
+  margin at 15 points: SRS, a least-squares fit (home court fixed at 3
+  pts, one phantom 0-margin game per team as a ridge prior so
+  early-season ratings stay finite and shrink toward 0) — a rating is
+  "points better than an average team". Because it's solved over the
+  whole season at once, a win over a team that later improves counts for
+  more on every refresh. (An Elo rating used to sit alongside it but was
+  dropped — being order-dependent, it never re-credited old wins that
+  way.) Outside opponents (teams a tracked team played that
+  aren't in a tracked league) get their *own* schedules scraped too, one
+  level out, so they're rated from real results rather than assumed
+  average — which is what makes a tracked team's SOS and its wins over
+  outside teams meaningful; their opponents (two levels out) enter the
+  solve but aren't scraped further. Scraped most-connected first, and new
+  outside scrapes stop 2 min before the Lambda's 900s timeout (a cut-off
+  run notes it in `warnings`); a failed outside scrape is only a warning.
+  SRS is solved by conjugate gradient on the sparse schedule graph
+  (`_solve_srs_system`) — dense elimination doesn't scale to the high
+  hundreds of rated teams this reaches late season, and there's no numpy
+  in the Lambda runtime. Every rated team is used in the math, but only
+  tracked teams are ranked or returned; `game_count` counts games
+  involving a tracked team, `rated_game_count`/`rated_team_count`
+  everything in the solve. `GET /rankings` (public) serves
+  the cache; a refresh runs from the daily EventBridge rule
+  (`cron(0 12 * * ? *)`, `infra/api.tf`), `aws lambda invoke
+  --function-name basketball-website-rankings --payload '{}' out.json`, or
+  the admin's "Refresh rankings" button (Season → League Standings, under
+  the standings table). A full scrape (~100 pages early season, a few
+  hundred late; minutes) outlasts API Gateway's 30s timeout, so `POST
+  /rankings` (JWT, `Edit Season`) doesn't scrape in-request: it re-invokes
+  the same Lambda asynchronously and returns 202. A `"refresh"` lock row
+  (`started_at`, taken with a conditional put; held by every refresh
+  including the scheduled one, cleared in a `finally`, considered stale
+  after 16 min in case a run is killed at the 900s timeout) makes a second
+  POST return 409 instead of starting an overlapping scrape. `GET` adds
+  `refresh_started_at` while a run is live, and the admin polls on that
+  until it clears. Async retries are off (`maximum_retry_attempts = 0`),
+  so a failed refresh doesn't immediately re-scrape twice more. A refresh where more than half the schedule
+  scrapes fail raises instead of overwriting the cache. Each team also
+  carries MaxPreps' own league-table numbers (`league_record`/`league_pf`/
+  `league_pa`/`overall_record`/`overall_pf`/`overall_pa`/`streak`, same
+  shape as `Standings` rows) alongside `record`, which is computed from the
+  scraped games the ratings use — the two can differ slightly. Read by the
+  public Regional Leagues page (see architecture.md); the admin reads
+  only `updated_at`/`refresh_started_at`, for its refresh panel. Teams also carry `address`/`lat`/`lng` for the School Map tab:
+  the street address is the first schema.org `PostalAddress` JSON-LD
+  block on the team's MaxPreps schedule page (already fetched — later
+  blocks are opponents'), geocoded with OpenStreetMap's Nominatim
+  (`geocode()`: structured street, then street minus periods/direction
+  word, then "<name> School, city", then ZIP centroid). Nominatim's policy
+  is ≤1 request/s, an identifying User-Agent, and caching — so a third
+  `"geo"` row caches `locations` (`team_id` → `{address, lat, lng}`) and a
+  school is only re-geocoded when its scraped address string changes; a
+  school that can't be placed is just missing from the map (and noted in
+  `warnings`). Teams also carry `color1`/`color2` ("#rrggbb"),
+  MaxPreps' school colors from the team's own embedded record on the same
+  schedule page (MaxPreps draws these from a fixed named palette, so
+  they're close to, not exactly, each school's real colors) — used for the
+  standings shield badges outside the hand-sampled `SCHOOL_COLORS` map.
 - `AdminAllowlist` (PK `email`) — surfaced in the admin UI as the
   Administration → Users tab (`usersMeta()`/`backend/functions/users`):
   `email`, `first_name`, `last_name`, `permissions` (list, any of `Admin`/
