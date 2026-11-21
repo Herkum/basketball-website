@@ -137,6 +137,17 @@ resource "aws_dynamodb_table" "standings" {
   }
 }
 
+resource "aws_dynamodb_table" "rankings" {
+  name         = "${var.project_name}-Rankings"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "cache_id"
+
+  attribute {
+    name = "cache_id"
+    type = "S"
+  }
+}
+
 resource "aws_dynamodb_table" "admin_allowlist" {
   name         = "${var.project_name}-AdminAllowlist"
   billing_mode = "PAY_PER_REQUEST"

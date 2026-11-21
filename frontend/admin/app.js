@@ -630,7 +630,7 @@ function openModal({ title, blurb, fields, initialValues, saveLabel, footnote, v
 /* ============================= Option lists ============================ */
 
 const PLAYER_YEARS = ["Freshman", "Sophomore", "Junior", "Senior"];
-const CONTENT_BLOCK_GENERATORS = ["", "Coaches", "Rosters", "Schedule", "News", "Contact Us", "Sponsors", "Photos", "Standings", "Logo", "Mission Statement", "Store", "Sponsorships", "Donate", "Games Online"];
+const CONTENT_BLOCK_GENERATORS = ["", "Coaches", "Rosters", "Schedule", "News", "Contact Us", "Sponsors", "Photos", "Standings", "Regional Leagues", "Logo", "Mission Statement", "Store", "Sponsorships", "Donate", "Games Online"];
 const CONTACT_TYPES = ["Email", "Physical Address", "Instagram", "Phone", "Website"];
 const CONTACT_KINDS = ["Program", "School", "Boosters", "Social"];
 const SPONSOR_TIERS = ["Banner", "Court", "Friend of the Program"];
@@ -1779,8 +1779,8 @@ async function renderStandingsSection(container) {
     const thead = el("thead", {}, [
       el("tr", { class: "admin-standings-group-row" }, [
         th("", { colspan: "2" }),
-        th("League", { colspan: "3", class: "group-start" }),
         th("Overall", { colspan: "5", class: "group-start" }),
+        th("League", { colspan: "3", class: "group-start" }),
         th("", { colspan: "2", class: "group-start" }),
       ]),
       el("tr", {}, [
@@ -1788,11 +1788,11 @@ async function renderStandingsSection(container) {
         th("School"),
         th("W-L", { class: "group-start" }),
         th("Pct"),
+        th("PF", { title: "Points for" }),
+        th("PA", { title: "Points against" }),
         th("Diff", { title: "Points for minus points against" }),
         th("W-L", { class: "group-start" }),
         th("Pct"),
-        th("PF", { title: "Points for" }),
-        th("PA", { title: "Points against" }),
         th("Diff", { title: "Points for minus points against" }),
         th("Streak", { class: "group-start" }),
         th("Actions", { style: "width:120px" }),
@@ -1835,14 +1835,14 @@ async function renderStandingsSection(container) {
             el("span", { text: row.school || "—" }),
           ]),
         ]),
-        el("td", { class: "admin-standings-record group-start", text: row.league_record || "0-0" }),
-        el("td", { text: formatPct(row.league_record) }),
-        el("td", { class: diffClass(leagueDiff), title: `PF ${row.league_pf || 0} · PA ${row.league_pa || 0}`, text: leagueDiff }),
         el("td", { class: "admin-standings-record group-start", text: row.overall_record || "0-0" }),
         el("td", { text: formatPct(row.overall_record) }),
         el("td", { text: row.overall_pf || "0" }),
         el("td", { text: row.overall_pa || "0" }),
         el("td", { class: diffClass(overallDiff), text: overallDiff }),
+        el("td", { class: "admin-standings-record group-start", text: row.league_record || "0-0" }),
+        el("td", { text: formatPct(row.league_record) }),
+        el("td", { class: diffClass(leagueDiff), title: `PF ${row.league_pf || 0} · PA ${row.league_pa || 0}`, text: leagueDiff }),
         el("td", { class: "group-start" }, [
           streak
             ? el("span", { class: `streak-badge ${streak.isWin ? "streak-badge--win" : "streak-badge--loss"}`, text: streak.label })

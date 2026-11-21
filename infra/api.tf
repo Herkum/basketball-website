@@ -243,6 +243,53 @@ resource "aws_apigatewayv2_route" "standings_put" {
   authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
+# Regional rankings: another singleton cache like standings, but GET-only -
+# a refresh scrapes ~70 pages and outlasts API Gateway's 30s timeout, so
+# it's driven by the EventBridge schedule below instead of an API route.
+resource "aws_apigatewayv2_integration" "rankings" {
+  api_id                 = aws_apigatewayv2_api.admin.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.function["rankings"].invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_lambda_permission" "allow_apigw_invoke_rankings" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.function["rankings"].function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.admin.execution_arn}/*/*"
+}
+
+resource "aws_apigatewayv2_route" "rankings_get" {
+  api_id    = aws_apigatewayv2_api.admin.id
+  route_key = "GET /rankings"
+
+  target             = "integrations/${aws_apigatewayv2_integration.rankings.id}"
+  authorization_type = "NONE"
+}
+
+# Daily refresh at 12:00 UTC (4am PST / 5am PDT) - after the previous
+# night's scores have been entered on MaxPreps. The event has no
+# requestContext, which the handler treats as "refresh".
+resource "aws_cloudwatch_event_rule" "rankings_refresh" {
+  name                = "${var.project_name}-rankings-refresh"
+  schedule_expression = "cron(0 12 * * ? *)"
+}
+
+resource "aws_cloudwatch_event_target" "rankings_refresh" {
+  rule = aws_cloudwatch_event_rule.rankings_refresh.name
+  arn  = aws_lambda_function.function["rankings"].arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_invoke_rankings" {
+  statement_id  = "AllowEventBridgeInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.function["rankings"].function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.rankings_refresh.arn
+}
+
 output "api_base_url" {
   value = aws_apigatewayv2_stage.default.invoke_url
 }

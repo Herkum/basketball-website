@@ -133,6 +133,7 @@ const GENERATOR_PAGES = {
   Sponsors: "sponsors.html",
   Photos: "photos.html",
   Standings: "standings.html",
+  "Regional Leagues": "regional-leagues.html",
   "Mission Statement": "mission.html",
   Store: "store.html",
   Sponsorships: "sponsorships.html",
@@ -152,7 +153,7 @@ const GENERATOR_PAGES = {
 const NAV_STRUCTURE = [
   { home: true },
   { generator: "Store" },
-  { group: "Media", items: ["News", "Photos", "Sponsors", "Games Online"] },
+  { group: "Media", items: ["News", "Photos", "Sponsors", "Games Online", "Regional Leagues"] },
   { group: "Basketball", items: ["Schedule", "Standings", "Rosters", "Coaches"] },
   {
     group: "Booster",
@@ -1458,6 +1459,73 @@ function streakBadge(streak) {
   });
 }
 
+// The full League Standings table (places with ties, highlighted "us"
+// row, grouped League/Overall columns, streak badges) for already-sorted
+// rows - shared by the Standings page and the Regional Leagues page's
+// per-league tables, so both read identically. `usName` is the
+// lowercased Logo block title (same "which row is us" matching as the
+// Home page standings and the sidebar record box).
+function buildStandingsTable(rows, usName) {
+  const places = standingsPlaces(rows);
+  const usIndex = usName ? rows.findIndex((r) => (r.school || "").toLowerCase() === usName) : -1;
+
+  const th = (text, attrs = {}) => el("th", { ...attrs, text });
+  const tbody = el("tbody");
+  rows.forEach((row, i) => {
+    const { place, tied } = places[i];
+    const leagueDiff = formatDiff(row.league_pf, row.league_pa);
+    const overallDiff = formatDiff(row.overall_pf, row.overall_pa);
+    tbody.appendChild(
+      el("tr", i === usIndex ? { class: "standings-row-us" } : {}, [
+        el("td", { class: "col-place nums", text: `${tied ? "T" : ""}${place}` }),
+        el("td", { class: "col-school" }, [
+          el("div", { class: "school-cell" }, [
+            el("span", { class: "school-badge", "aria-hidden": "true", style: schoolBadgeStyle(row.school, row), text: schoolInitials(row.school) }),
+            row.link
+              ? el("a", { href: row.link, target: "_blank", rel: "noopener", text: row.school || "" })
+              : el("span", { text: row.school || "" }),
+          ]),
+        ]),
+        el("td", { class: "col-record nums group-start", text: row.overall_record || "0-0" }),
+        el("td", { class: "nums", text: formatPct(row.overall_record) }),
+        el("td", { class: "nums col-optional", text: row.overall_pf || "0" }),
+        el("td", { class: "nums col-optional", text: row.overall_pa || "0" }),
+        el("td", { class: `nums col-diff ${diffClass(overallDiff)}`.trim(), text: overallDiff }),
+        el("td", { class: "col-record nums group-start", text: row.league_record || "0-0" }),
+        el("td", { class: "nums", text: formatPct(row.league_record) }),
+        el("td", { class: `nums col-diff ${diffClass(leagueDiff)}`.trim(), title: `PF ${row.league_pf || 0} · PA ${row.league_pa || 0}`, text: leagueDiff }),
+        el("td", { class: "group-start" }, [streakBadge(row.streak)]),
+      ])
+    );
+  });
+
+  const table = el("table", { class: "standings-table standings-table--full" }, [
+    el("thead", {}, [
+      el("tr", { class: "standings-group-row" }, [
+        th("", { colspan: "2" }),
+        th("Overall", { colspan: "5", class: "group-start" }),
+        th("League", { colspan: "3", class: "group-start" }),
+        th("", { class: "group-start" }),
+      ]),
+      el("tr", {}, [
+        th("#", { class: "col-place" }),
+        th("School", { class: "col-school" }),
+        th("W-L", { class: "group-start" }),
+        th("Pct"),
+        th("PF", { class: "col-optional", title: "Points for" }),
+        th("PA", { class: "col-optional", title: "Points against" }),
+        th("Diff", { title: "Points for minus points against" }),
+        th("W-L", { class: "group-start" }),
+        th("Pct"),
+        th("Diff", { title: "Points for minus points against" }),
+        th("Streak", { class: "group-start" }),
+      ]),
+    ]),
+    tbody,
+  ]);
+  return el("div", { class: "table-scroll" }, [table]);
+}
+
 async function initStandingsPage() {
   const { blocks, standingsCache: cache } = await initLayout();
   const intro = findBlockByGenerator(blocks, "Standings");
@@ -1472,67 +1540,7 @@ async function initStandingsPage() {
     main.appendChild(el("p", { class: "empty-state", text: "Standings aren't available yet." }));
     return;
   }
-  const places = standingsPlaces(rows);
-  // Same "which row is us" matching as the Home page standings and the
-  // sidebar record box - our school's row matched by the Logo block title.
-  const usName = (logoBlock?.title || "").toLowerCase();
-  const usIndex = usName ? rows.findIndex((r) => (r.school || "").toLowerCase() === usName) : -1;
-
-  const th = (text, attrs = {}) => el("th", { ...attrs, text });
-  const tbody = el("tbody");
-  rows.forEach((row, i) => {
-    const { place, tied } = places[i];
-    const leagueDiff = formatDiff(row.league_pf, row.league_pa);
-    const overallDiff = formatDiff(row.overall_pf, row.overall_pa);
-    tbody.appendChild(
-      el("tr", i === usIndex ? { class: "standings-row-us" } : {}, [
-        el("td", { class: "col-place nums", text: `${tied ? "T" : ""}${place}` }),
-        el("td", { class: "col-school" }, [
-          el("div", { class: "school-cell" }, [
-            el("span", { class: "school-badge", "aria-hidden": "true", style: schoolBadgeStyle(row.school), text: schoolInitials(row.school) }),
-            row.link
-              ? el("a", { href: row.link, target: "_blank", rel: "noopener", text: row.school || "" })
-              : el("span", { text: row.school || "" }),
-          ]),
-        ]),
-        el("td", { class: "col-record nums group-start", text: row.league_record || "0-0" }),
-        el("td", { class: "nums", text: formatPct(row.league_record) }),
-        el("td", { class: `nums col-diff ${diffClass(leagueDiff)}`.trim(), title: `PF ${row.league_pf || 0} · PA ${row.league_pa || 0}`, text: leagueDiff }),
-        el("td", { class: "col-record nums group-start", text: row.overall_record || "0-0" }),
-        el("td", { class: "nums", text: formatPct(row.overall_record) }),
-        el("td", { class: "nums col-optional", text: row.overall_pf || "0" }),
-        el("td", { class: "nums col-optional", text: row.overall_pa || "0" }),
-        el("td", { class: `nums col-diff ${diffClass(overallDiff)}`.trim(), text: overallDiff }),
-        el("td", { class: "group-start" }, [streakBadge(row.streak)]),
-      ])
-    );
-  });
-
-  const table = el("table", { class: "standings-table standings-table--full" }, [
-    el("thead", {}, [
-      el("tr", { class: "standings-group-row" }, [
-        th("", { colspan: "2" }),
-        th("League", { colspan: "3", class: "group-start" }),
-        th("Overall", { colspan: "5", class: "group-start" }),
-        th("", { class: "group-start" }),
-      ]),
-      el("tr", {}, [
-        th("#", { class: "col-place" }),
-        th("School", { class: "col-school" }),
-        th("W-L", { class: "group-start" }),
-        th("Pct"),
-        th("Diff", { title: "Points for minus points against" }),
-        th("W-L", { class: "group-start" }),
-        th("Pct"),
-        th("PF", { class: "col-optional", title: "Points for" }),
-        th("PA", { class: "col-optional", title: "Points against" }),
-        th("Diff", { title: "Points for minus points against" }),
-        th("Streak", { class: "group-start" }),
-      ]),
-    ]),
-    tbody,
-  ]);
-  main.appendChild(el("div", { class: "table-scroll" }, [table]));
+  main.appendChild(buildStandingsTable(rows, (logoBlock?.title || "").toLowerCase()));
 
   const footnoteParts = ["Ranked by league record, then overall record."];
   if (cache?.updated_at) {
@@ -1541,4 +1549,314 @@ async function initStandingsPage() {
     );
   }
   main.appendChild(el("p", { class: "standings-footnote", text: footnoteParts.join(" ") }));
+}
+
+// Regional Leagues - the `rankings` Lambda's cache (see Rankings in
+// docs/content-schemas.md): every team in a fixed set of area leagues,
+// rated by capped-margin SRS so teams that never play each other
+// can still be compared. Three tabs: a Ranking table sortable by any
+// column header, one League Standings-style table per league (via
+// buildStandingsTable, so those sort/rank exactly like our own league's
+// Standings page), and a School Map (buildSchoolMap).
+async function initRegionalLeaguesPage() {
+  const { blocks } = await initLayout();
+  const intro = findBlockByGenerator(blocks, "Regional Leagues");
+  const logoBlock = findBlockByGenerator(blocks, "Logo");
+  const usName = (logoBlock?.title || "").toLowerCase();
+  setPageTitle(intro?.title || "Regional Leagues");
+  const main = document.getElementById("page-content");
+
+  const cache = await siteFetch("/rankings").catch(() => null);
+  const teams = cache?.teams || [];
+  const leagues = cache?.leagues || [];
+  main.appendChild(el("span", { class: "eyebrow", text: `${leagues.length} Area Leagues · ${defaultSeason()} Varsity` }));
+  if (intro?.body) main.appendChild(el("p", { class: "page-intro", text: intro.body }));
+  if (!teams.length) {
+    main.appendChild(el("p", { class: "empty-state", text: "Regional leagues aren't available yet." }));
+    return;
+  }
+
+  const signed = (n, digits = 1) => {
+    const v = Number(n) || 0;
+    return v > 0 ? `+${v.toFixed(digits)}` : v.toFixed(digits);
+  };
+  const winPct = (record) => {
+    const { wins, losses } = parseRecord(record);
+    return wins + losses ? wins / (wins + losses) : -1;
+  };
+  // A team with no games yet has nothing to rank on - shown as a dash and
+  // always sorted to the bottom of a rank column, whichever direction.
+  const played = (t) => Number(t.games) > 0;
+
+  // `value` is what a column sorts on; `desc` means its first click sorts
+  // high-to-low (ratings), otherwise low-to-high (ranks, names).
+  const COLUMNS = [
+    { label: "#", title: "SRS rank", cls: "col-place", value: (t) => (played(t) ? Number(t.srs_rank) : Infinity), render: (t) => (played(t) ? String(t.srs_rank) : "—") },
+    { label: "School", cls: "col-school", value: (t) => t.name || "", school: true },
+    { label: "League", cls: "col-league", value: (t) => t.league_name || "" },
+    { label: "W-L", value: (t) => winPct(t.record), desc: true, render: (t) => t.record || "0-0" },
+    { label: "Margin", title: "Average point margin per game (each game capped at ±15)", value: (t) => Number(t.avg_margin), desc: true, render: (t) => (played(t) ? signed(t.avg_margin) : "—"), diff: true },
+    { label: "SOS", title: "Strength of schedule: average SRS of opponents played", value: (t) => Number(t.sos), desc: true, render: (t) => (played(t) ? signed(t.sos) : "—"), cls: "col-optional" },
+    { label: "SRS", title: "Simple Rating System: points better than an average team on a neutral floor", value: (t) => Number(t.srs), desc: true, render: (t) => signed(t.srs), diff: true },
+  ];
+
+  const tabs = el("div", { class: "filter-row" });
+  const overallPanel = el("div");
+  const leaguesPanel = el("div");
+  const mapPanel = el("div");
+  main.appendChild(tabs);
+  main.appendChild(overallPanel);
+  main.appendChild(leaguesPanel);
+  main.appendChild(mapPanel);
+
+  /* ---- Ranking tab: sortable by any header ---- */
+  let sortIndex = 0;
+  let sortAsc = true;
+  const thead = el("thead");
+  const tbody = el("tbody");
+  overallPanel.appendChild(
+    el("div", { class: "table-scroll" }, [el("table", { class: "standings-table standings-table--full regional-table" }, [thead, tbody])])
+  );
+
+  function compareTeams(a, b) {
+    const col = COLUMNS[sortIndex];
+    const av = col.value(a);
+    const bv = col.value(b);
+    // Unplayed teams (Infinity) stay last regardless of direction.
+    if (av === Infinity || bv === Infinity) return av === bv ? 0 : av === Infinity ? 1 : -1;
+    const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
+    // SRS rank is the stable tiebreaker for every column.
+    return (sortAsc ? cmp : -cmp) || Number(a.srs_rank) - Number(b.srs_rank);
+  }
+
+  function paintHeader() {
+    thead.innerHTML = "";
+    thead.appendChild(
+      el(
+        "tr",
+        {},
+        COLUMNS.map((col, i) => {
+          const active = i === sortIndex;
+          const attrs = {
+            class: ["th-sortable", col.cls, active && "th-sorted"].filter(Boolean).join(" "),
+            text: col.label + (active ? (sortAsc ? " ▲" : " ▼") : ""),
+            "aria-sort": active ? (sortAsc ? "ascending" : "descending") : "none",
+          };
+          if (col.title) attrs.title = col.title;
+          const th = el("th", attrs);
+          th.addEventListener("click", () => {
+            sortAsc = i === sortIndex ? !sortAsc : !col.desc;
+            sortIndex = i;
+            paintHeader();
+            paintRows();
+          });
+          return th;
+        })
+      )
+    );
+  }
+
+  function paintRows() {
+    tbody.innerHTML = "";
+    for (const t of [...teams].sort(compareTeams)) {
+      const isUs = usName && (t.name || "").toLowerCase() === usName;
+      tbody.appendChild(
+        el(
+          "tr",
+          isUs ? { class: "standings-row-us" } : {},
+          COLUMNS.map((col) => {
+            if (col.school) {
+              return el("td", { class: "col-school" }, [
+                el("div", { class: "school-cell" }, [
+                  el("span", { class: "school-badge", "aria-hidden": "true", style: schoolBadgeStyle(t.name, t), text: schoolInitials(t.name) }),
+                  el("a", { href: t.url, target: "_blank", rel: "noopener", text: t.name || "" }),
+                ]),
+              ]);
+            }
+            const text = col.render ? col.render(t) : String(col.value(t));
+            const cls = [col.cls, col.cls === "col-league" ? "" : "nums", col.diff && played(t) ? diffClass(text) : ""].filter(Boolean).join(" ");
+            return el("td", { class: cls, text });
+          })
+        )
+      );
+    }
+  }
+
+  paintHeader();
+  paintRows();
+  overallPanel.appendChild(
+    el("p", {
+      class: "standings-footnote",
+      text:
+        "SRS rates each team in points better than an average team, from every game's score margin (capped at 15) " +
+        "adjusted for opponent strength and home court. " +
+        "Early-season ratings move a lot - only a few games are in. Click any column to sort.",
+    })
+  );
+
+  /* ---- Leagues tab (leagues A-Z) ---- */
+  for (const league of [...leagues].sort((a, b) => (a.name || "").localeCompare(b.name || ""))) {
+    const rows = teams
+      .filter((t) => t.league === league.league)
+      .map((t) => ({ ...t, school: t.name, link: t.url }))
+      .sort(compareStandingsRows);
+    if (!rows.length) continue;
+    leaguesPanel.appendChild(sectionDivider(`${league.name} League`, [buildStandingsTable(rows, usName)]));
+  }
+  leaguesPanel.appendChild(el("p", { class: "standings-footnote", text: "Each league ranked by league record, then overall record, as reported by MaxPreps." }));
+
+  /* ---- Tabs (remembered in the URL hash so a link can open either) ---- */
+  // The map is built on first view, not up front - Leaflet measures its
+  // container when it initializes, and a hidden panel measures 0x0.
+  let schoolMap = null;
+  const TABS = [
+    { id: "ranking", label: "Ranking", panel: overallPanel },
+    { id: "leagues", label: "Leagues", panel: leaguesPanel },
+    {
+      id: "map",
+      label: "School Map",
+      panel: mapPanel,
+      onShow: () => {
+        if (!schoolMap) schoolMap = buildSchoolMap(mapPanel, teams, leagues, usName);
+        else schoolMap.invalidateSize();
+      },
+    },
+  ];
+  function showTab(id) {
+    for (const tab of TABS) {
+      tab.panel.hidden = tab.id !== id;
+      tab.button.classList.toggle("active", tab.id === id);
+    }
+    TABS.find((tab) => tab.id === id)?.onShow?.();
+  }
+  for (const tab of TABS) {
+    tab.button = el("button", { type: "button", text: tab.label });
+    tab.button.addEventListener("click", () => {
+      history.replaceState(null, "", `#${tab.id}`);
+      showTab(tab.id);
+    });
+    tabs.appendChild(tab.button);
+  }
+  const hashTab = window.location.hash.slice(1);
+  showTab(TABS.some((tab) => tab.id === hashTab) ? hashTab : "ranking");
+
+  if (cache.updated_at) {
+    main.appendChild(
+      el("p", {
+        class: "standings-footnote",
+        text: `Updated ${new Date(cache.updated_at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })} · ${cache.game_count || 0} games.`,
+      })
+    );
+  }
+}
+
+// Regional Leagues' School Map tab: every tracked school pinned on an
+// OpenStreetMap base map (Leaflet, loaded from cdnjs by
+// regional-leagues.html only). Coordinates come from the rankings
+// Lambda's cached geocode of each school's MaxPreps address. Pins are one
+// neutral ink color, with a league filter row that highlights that
+// league's schools in the site's bronze accent and dims the rest, rather
+// than ten league colors - too many hues to tell apart on a map, and the
+// Classical system is single-accent. Our own school always wears the
+// header yellow. Returns the Leaflet map (or null if Leaflet didn't load).
+function buildSchoolMap(container, teams, leagues, usName) {
+  if (typeof L === "undefined") {
+    container.appendChild(el("p", { class: "empty-state", text: "The map couldn't be loaded." }));
+    return null;
+  }
+  const located = teams.filter((t) => t.lat != null && t.lng != null);
+  const isUs = (t) => usName && (t.name || "").toLowerCase() === usName;
+  const sortedLeagues = [...leagues].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  const filterRow = el("div", { class: "filter-row" });
+  const mapEl = el("div", { class: "school-map", role: "region", "aria-label": "Map of schools in the region" });
+  const legend = el("div", { class: "school-map-legend" }, [
+    el("span", {}, [el("span", { class: "map-key map-key--us" }), el("span", { text: "Our school" })]),
+    el("span", {}, [el("span", { class: "map-key map-key--selected" }), el("span", { text: "Selected league" })]),
+    el("span", {}, [el("span", { class: "map-key" }), el("span", { text: "Other schools" })]),
+  ]);
+  container.appendChild(filterRow);
+  container.appendChild(mapEl);
+  container.appendChild(legend);
+
+  const map = L.map(mapEl, { scrollWheelZoom: false });
+  // Leaflet only renders vector markers once the map has a view, so frame
+  // every school (or a default Ventura/West Valley view) before adding any.
+  if (located.length) map.fitBounds(L.latLngBounds(located.map((t) => [Number(t.lat), Number(t.lng)])), { padding: [30, 30] });
+  else map.setView([34.25, -119.0], 9);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  }).addTo(map);
+
+  const css = getComputedStyle(document.documentElement);
+  const color = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+  const INK = color("--color-text", "#201f1d");
+  const ACCENT = color("--color-accent", "#b68235");
+  const YELLOW = color("--color-yellow-dk", "#e2e231");
+  const WHITE = "#ffffff";
+
+  function popupFor(t) {
+    const rows = [
+      el("strong", { class: "map-popup-name", text: t.name || "" }),
+      el("span", { class: "eyebrow", text: `${t.league_name || ""} League` }),
+      el("span", { class: "nums", text: `${t.record || "0-0"} · SRS #${t.srs_rank} (${Number(t.srs) > 0 ? "+" : ""}${Number(t.srs).toFixed(1)})` }),
+    ];
+    if (t.address) rows.push(el("span", { class: "map-popup-address", text: t.address }));
+    rows.push(
+      el("span", { class: "map-popup-links" }, [
+        t.address ? el("a", { href: mapsUrl(t.address), target: "_blank", rel: "noopener", text: "Directions" }) : null,
+        el("a", { href: t.url, target: "_blank", rel: "noopener", text: "MaxPreps" }),
+      ].filter(Boolean))
+    );
+    return el("div", { class: "map-popup" }, rows);
+  }
+
+  const markers = located.map((t) => {
+    const marker = L.circleMarker([Number(t.lat), Number(t.lng)], { weight: 2, opacity: 1 })
+      .bindTooltip(t.name || "", { direction: "top", offset: [0, -6] })
+      .bindPopup(popupFor(t))
+      .addTo(map);
+    return { team: t, marker };
+  });
+
+  // league = null shows every school at full strength.
+  function applyFilter(league) {
+    const inView = [];
+    for (const { team, marker } of markers) {
+      const selected = league && team.league === league;
+      const dimmed = league && !selected && !isUs(team);
+      if (isUs(team)) {
+        marker.setStyle({ radius: 9, fillColor: YELLOW, color: INK, fillOpacity: 1, opacity: 1 });
+      } else if (selected) {
+        marker.setStyle({ radius: 9, fillColor: ACCENT, color: WHITE, fillOpacity: 1, opacity: 1 });
+      } else {
+        marker.setStyle({ radius: dimmed ? 5 : 7, fillColor: INK, color: WHITE, fillOpacity: dimmed ? 0.3 : 0.85, opacity: dimmed ? 0.5 : 1 });
+      }
+      if (selected) marker.bringToFront();
+      if (!league || selected) inView.push(marker.getLatLng());
+    }
+    markers.filter(({ team }) => isUs(team)).forEach(({ marker }) => marker.bringToFront());
+    if (inView.length) map.fitBounds(L.latLngBounds(inView), { padding: [30, 30], maxZoom: 12 });
+  }
+
+  const buttons = [{ label: "All", league: null }, ...sortedLeagues.map((l) => ({ label: l.name, league: l.league }))];
+  for (const { label, league } of buttons) {
+    const btn = el("button", { type: "button", text: label, ...(league ? {} : { class: "active" }) });
+    btn.addEventListener("click", () => {
+      filterRow.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      applyFilter(league);
+    });
+    filterRow.appendChild(btn);
+  }
+  applyFilter(null);
+
+  const missing = teams.length - located.length;
+  if (missing) {
+    container.appendChild(
+      el("p", { class: "standings-footnote", text: `${missing} school${missing === 1 ? "" : "s"} couldn't be placed on the map.` })
+    );
+  }
+  return map;
 }

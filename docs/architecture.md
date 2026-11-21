@@ -12,7 +12,7 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   Public site pages live at `frontend/` root (`index.html`, `rosters.html`,
   `roster.html`, `schedule.html`, `news.html`, `coaches.html`,
   `contact.html`, `sponsors.html`, `photos.html`, `standings.html`, `games-online.html`,
-  `mission.html`) sharing `site.js`/
+  `mission.html`, `regional-leagues.html`) sharing `site.js`/
   `site.css`; `frontend/admin/` is the separate admin SPA with its own
   `app.js`/`style.css`.
 - **Public site layout**: `#site-header` sits *above* `.layout` as a full-
@@ -154,9 +154,44 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   Each school name has a shield monogram (`schoolInitials()`, same
   shape as the header's Logo fallback) colored from the hardcoded
   `SCHOOL_COLORS` map in `shared.js`, keyed by the scraped `school`
-  name — not admin-editable; a school missing from the map (or renamed
-  by MaxPreps) falls back to a plain outlined badge, and our own row uses
-  the header yellow via CSS instead of a map entry.
+  name — not admin-editable. `schoolBadgeStyle(name, team)` prefers that
+  hand-sampled map (currently the Marmonte schools); otherwise, when given
+  a Rankings team row, it uses that school's scraped MaxPreps
+  `color1`/`color2` via `badgeColorsFromTeam()` (same fill/initials/
+  outline conventions as the map, plus initials forced to black or white
+  when MaxPreps' pair is below 3:1 contrast — common, e.g. navy/gray).
+  That's how every Regional Leagues shield gets school colors. A school
+  in neither falls back to a plain outlined badge, and our own row uses
+  the header yellow via CSS regardless.
+- **Regional Leagues page** (`regional-leagues.html`/
+  `initRegionalLeaguesPage` in `site.js`, under the sidebar's Media
+  group, generator "Regional Leagues"): renders `GET /rankings` (see
+  `Rankings` in content-schemas.md) as three tabs, toggled by `filter-row`
+  buttons and remembered in the URL hash (`#leagues`). **Ranking** (`#ranking`) is every tracked team in one table (`.regional-table`,
+  skinned like `.standings-table--full`), sortable by clicking any header
+  — ratings sort high-to-low on first click, ranks/names low-to-high,
+  teams with no games always last, SRS rank as the tiebreaker.
+  **Leagues** is one `sectionDivider` per league
+  (alphabetical by league name), each table
+  built by `buildStandingsTable(rows, usName)` — the same function the
+  Standings page itself uses (extracted from `initStandingsPage` for
+  this), so per-league tables sort, place ties, badge, and highlight our
+  row exactly like our own league's Standings. School names link to the
+  team's MaxPreps page rather than an admin-set `link`.
+  **School Map** (`#map`, `buildSchoolMap` in `site.js`) pins every
+  tracked school on an OpenStreetMap base map via Leaflet 1.9.4, loaded
+  from cdnjs with SRI hashes by `regional-leagues.html` only (the one
+  third-party script on the public site — no API key, unlike Google Maps,
+  which needs a billed Cloud key). Built lazily on the tab's first show,
+  since Leaflet measures its container on init and a hidden panel is 0×0;
+  the map must also have a view (`fitBounds`) *before* any marker is added
+  or styled, or Leaflet throws on `bringToFront`. Pins are deliberately one
+  neutral ink color plus a league filter row that highlights the chosen
+  league in the bronze accent and dims the rest — not ten league hues
+  (too many to tell apart on a map, and the Classical system is
+  single-accent); our school is always the header yellow with a dark
+  ring. Each pin's popup has record/SRS, the address, a `mapsUrl()`
+  Directions link, and the MaxPreps link.
 - **Schedule page List/Calendar toggle**: `initSchedulePage` in `site.js`
   can render the same filtered games as either the month-grouped table
   (`renderTable`) or a month calendar grid (`buildCalendar`, read-only
@@ -252,11 +287,11 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   gotchas" below for why. Adding a new keyed-list resource is table-driven:
   one entry each in `local.functions` (`infra/lambda.tf`), a table in
   `infra/dynamodb.tf`, and `local.api_routes` (`infra/api.tf`) — the
-  routing/CORS/JWT-vs-public wiring itself needs no changes. `standings`
-  and `uploads` are the two exceptions to this pattern — both are
+  routing/CORS/JWT-vs-public wiring itself needs no changes. `standings`,
+  `rankings`, and `uploads` are the exceptions to this pattern — all are
   singleton actions (not a keyed list of entities), so they get bespoke
   integration/route blocks in `api.tf` instead (`GET`/`POST /standings`,
-  `POST /uploads`) while still reusing the generic
+  `GET /rankings`, `POST /uploads`) while still reusing the generic
   `local.functions`/`aws_lambda_function.function` mechanism for their
   actual Lambda deployment.
 - **Rosters/Players**: `rosters` is team-level (name, photo, drag-order,
