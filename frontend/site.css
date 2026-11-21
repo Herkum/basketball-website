@@ -208,37 +208,55 @@ a {
   margin-top:     0.2rem;
 }
 
+/* Sidebar W-L record: a dark card in the header's black/yellow palette
+   so it stands out against the grey sidebar instead of blending in as a
+   hairline outline. */
+.record-card {
+  margin: 0 1rem 1rem;
+  background: var(--color-black);
+  border-top: 3px solid var(--color-yellow-dk);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 0.55rem 0 0.7rem;
+}
+
 .record-box-label {
-  margin: 0 1.5rem 0.35rem;
   text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-brown-lt);
+  margin-bottom: 0.35rem;
 }
 
 .record-box {
   display: flex;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  margin: 0 1.5rem 0.5rem;
-  overflow: hidden;
 }
 
 .record-col {
   flex: 1;
   text-align: center;
-  padding: 0.6rem 0.5rem;
+  padding: 0.1rem 0.5rem;
 }
 
 .record-col + .record-col {
-  border-left: 1px solid var(--border);
+  border-left: 1px solid color-mix(in srgb, var(--color-white) 18%, transparent);
 }
 
 .record-value {
   font-family: var(--font-heading);
-  font-size: 1.4rem;
+  font-size: 2rem;
+  font-weight: 700;
   line-height: 1;
+  color: var(--color-yellow-dk);
 }
 
-.record-col .eyebrow {
-  margin: 0.3rem 0 0;
+.record-col-label {
+  margin-top: 0.3rem;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-white) 75%, transparent);
 }
 
 /* Sits below .layout (see any page's HTML), not inside #site-sidebar -
@@ -310,12 +328,19 @@ a {
   padding-left: 2rem;
 }
 
+/* Group headers (Media/Basketball/Booster) as dark bands in the header's
+   black/yellow palette, matching the record card, so the sections read
+   as distinct blocks instead of blending into the link list. */
 .nav-group-label {
-  padding: 0.25rem 0.75rem 0.25rem;
-  font-size: 1rem;
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  background: var(--color-black);
+  color: var(--color-yellow-dk);
+  border-left: 3px solid var(--color-yellow-dk);
 }
 
 /* Auto left/right margins here used to make main a flex item with
@@ -335,11 +360,24 @@ main {
   width: 100%;
 }
 
-/* Home page only (see the .home-page class on index.html's <body>) -
-   #page-title is shared markup across every page, so this can't just be
-   an #page-title rule without affecting every other page's header too. */
+/* Every page's <h1> - a white plate with a black left bar and yellow
+   underline, so the title stands off the grey page background without
+   copying the sidebar's solid black group-header bands. */
 #page-title {
-  padding-left: 1rem;
+  background: var(--color-white);
+  border-left: 6px solid var(--color-black);
+  border-bottom: 3px solid var(--color-yellow-dk);
+  border-radius: 0 var(--radius-md) 0 0;
+  box-shadow: var(--shadow-sm);
+  padding: 0.35rem 1rem 0.3rem;
+  /* side margins match div#page-content's 1rem padding so the plate
+     lines up with the content below it */
+  margin: 1.25rem 1rem 0;
+}
+
+/* Filled in by JS - don't flash an empty plate before it loads. */
+#page-title:empty {
+  display: none;
 }
 
 .page-intro {
@@ -796,8 +834,13 @@ div#page-content > span.eyebrow {
   margin: 2rem 0 1rem;
 }
 
+/* In-page section headings: a lighter echo of #page-title - just the
+   black left bar, no plate - so sections stand out without competing
+   with the page title itself. */
 .section-heading h2 {
   margin: 0;
+  border-left: 4px solid var(--color-black);
+  padding-left: 0.6rem;
 }
 
 .section-divider {
@@ -1711,21 +1754,28 @@ tbody tr:hover {
   font-size: 0.9rem;
 }
 
+/* Home page Last Result / Next Game / Upcoming band - a white card
+   (same treatment as the .home-card standings/sponsor cards further
+   down) so it reads as its own block without a heavy dark fill. */
 .stat-row {
   display: flex;
   flex-wrap: wrap;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  margin-top: 0.75rem;
+  background: var(--color-white);
+  border-top: 3px solid var(--color-black);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 
-.stat-row > span.eyebrow {
+.stat-row .eyebrow {
   font-size: 0.7rem;
+  letter-spacing: 0.16em;
 }
 
 .stat-col {
   flex: 1 1 200px;
   padding: 1.1rem 1.25rem;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--color-grey);
 }
 
 /* Wider weighting for the Upcoming column (a short list, not one stat) -
@@ -1746,15 +1796,40 @@ tbody tr:hover {
 }
 
 .stat-value {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   font-family: var(--font-heading);
-  font-size: 1.5rem;
-  line-height: 1.2;
+  font-size: 2.1rem;
+  font-weight: 700;
+  line-height: 1.1;
   text-decoration: none;
+  color: var(--color-text);
 }
 
 a.stat-value:hover {
   text-decoration: underline;
+}
+
+.stat-result-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-white);
+}
+
+.stat-result-badge.is-win {
+  background: #1f9d3f;
+}
+
+.stat-result-badge.is-loss {
+  background: #d93a2b;
 }
 
 .stat-meta {
@@ -1770,6 +1845,10 @@ a.stat-value:hover {
   border-bottom: 1px solid var(--border);
 }
 
+.stat-row .stat-list-row {
+  border-bottom-color: var(--color-grey);
+}
+
 .stat-list-link {
   display: block;
   padding-top: 0.6rem;
@@ -1778,7 +1857,11 @@ a.stat-value:hover {
 @media (max-width: 720px) {
   .stat-col {
     border-right: none;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--color-grey);
+  }
+
+  .stat-col:last-child {
+    border-bottom: none;
   }
 }
 
@@ -1797,4 +1880,135 @@ a.stat-value:hover {
   background: var(--color-black);
   color: var(--color-yellow-dk);
   font-size: 1rem;
+}
+
+/* Home page: abbreviated standings (Overall W-L) beside a random
+   Sponsor Spotlight - two equal cards, stacking on narrow screens. */
+.home-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+@media (max-width: 720px) {
+  .home-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-white);
+  border-top: 3px solid var(--color-black);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  padding: 1rem 1.25rem;
+}
+
+.home-card > .stat-list-link {
+  margin-top: auto;
+  padding-top: 0.9rem;
+}
+
+.home-card-title {
+  margin: 0.2rem 0 0.6rem;
+}
+
+.standings-mini {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.standings-mini th {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+  padding: 0 0.5rem 0.35rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.standings-mini td {
+  text-align: center;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--color-grey);
+  width: 3rem;
+}
+
+.standings-mini .col-school {
+  text-align: left;
+  width: auto;
+}
+
+.standings-mini td.col-school {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.standings-mini .school-badge {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--badge-border, currentColor);
+  background: var(--badge-bg, transparent);
+  color: var(--badge-fg, inherit);
+  border-radius: 2px 2px 10px 10px;
+  font-family: var(--font-heading);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.standings-mini tr.standings-row-us td {
+  background: var(--color-accent-100);
+  font-weight: 600;
+}
+
+.standings-mini tr.standings-row-us .school-badge {
+  background: var(--color-yellow-dk);
+  border-color: var(--color-yellow-dk);
+  color: var(--color-black);
+}
+
+.home-card--sponsor {
+  border-top-color: var(--color-yellow-dk);
+}
+
+.sponsor-tier {
+  align-self: flex-start;
+  margin-top: 0.6rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-accent-700);
+}
+
+.sponsor-spotlight-name {
+  font-size: 2rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.sponsor-spotlight-kind {
+  margin: 0;
+  color: var(--muted);
+}
+
+.sponsor-spotlight-link {
+  margin-top: 0.75rem;
+  font-weight: 600;
+}
+
+.sponsor-spotlight-thanks {
+  margin: 1rem 0 0;
+  font-style: italic;
+  color: var(--muted);
 }

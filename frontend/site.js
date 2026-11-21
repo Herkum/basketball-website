@@ -141,7 +141,7 @@ const GENERATOR_PAGES = {
   "Games Online": "games-online.html",
 };
 
-// Sidebar nav is a fixed structure (Home/Store top-level, then three
+// Sidebar nav is a fixed structure (Home/Store/Donate top-level, then three
 // grouped sections) rather than being driven purely by Content Block
 // `order`, per explicit request - group headers below are hardcoded
 // labels, but each link's own text still comes from its Content Block's
@@ -152,17 +152,18 @@ const GENERATOR_PAGES = {
 // reachable before that block exists.
 const NAV_STRUCTURE = [
   { home: true },
-  { generator: "Store" },
+  // Store links straight out to the promo-ops team store (new tab) rather
+  // than to store.html; its label still comes from the Store block's title.
+  { generator: "Store", href: "https://npbasketball.promo-ops.com/" },
+  { generator: "Donate" },
   { group: "Media", items: ["News", "Photos", "Sponsors", "Games Online", "Regional Leagues"] },
   { group: "Basketball", items: ["Schedule", "Standings", "Rosters", "Coaches"] },
   {
     group: "Booster",
     items: [
-      { label: "Panther Team Store", href: "https://npbasketball.promo-ops.com/" },
       "Mission Statement",
       "Contact Us",
       "Sponsorships",
-      "Donate",
     ],
   },
 ];
@@ -255,16 +256,18 @@ async function initLayout() {
     ? (standingsCache?.rows || []).find((r) => (r.school || "").toLowerCase() === (logoBlock.title || "").toLowerCase())
     : null;
   if (ourStandingsRow) {
-    sidebar.appendChild(el("span", { class: "eyebrow record-box-label", text: "Varsity" }));
     sidebar.appendChild(
-      el("div", { class: "record-box" }, [
-        el("div", { class: "record-col" }, [
-          el("div", { class: "record-value nums", text: ourStandingsRow.overall_record || "" }),
-          el("div", { class: "eyebrow", text: "Overall" }),
-        ]),
-        el("div", { class: "record-col" }, [
-          el("div", { class: "record-value nums", text: ourStandingsRow.league_record || "" }),
-          el("div", { class: "eyebrow", text: "League" }),
+      el("div", { class: "record-card" }, [
+        el("div", { class: "record-box-label", text: "Varsity Record" }),
+        el("div", { class: "record-box" }, [
+          el("div", { class: "record-col" }, [
+            el("div", { class: "record-value nums", text: ourStandingsRow.overall_record || "" }),
+            el("div", { class: "record-col-label", text: "Overall" }),
+          ]),
+          el("div", { class: "record-col" }, [
+            el("div", { class: "record-value nums", text: ourStandingsRow.league_record || "" }),
+            el("div", { class: "record-col-label", text: "League" }),
+          ]),
         ]),
       ])
     );
@@ -315,10 +318,15 @@ async function initLayout() {
       }
       continue;
     }
-    // Top-level, non-grouped generator-driven link (Store).
+    // Top-level, non-grouped generator-driven link (Store, Donate).
     const block = findBlockByGenerator(blocks, entry.generator);
+    const label = block?.title || entry.generator;
+    if (entry.href) {
+      navItems.push(el("a", { href: entry.href, text: label, target: "_blank", rel: "noopener" }));
+      continue;
+    }
     const href = pageForGenerator(entry.generator);
-    navItems.push(el("a", { href, text: block?.title || entry.generator, ...classAttr(href === currentFile && "active") }));
+    navItems.push(el("a", { href, text: label, ...classAttr(href === currentFile && "active") }));
   }
 
   sidebar.appendChild(el("nav", { class: "site-nav" }, navItems));
@@ -415,10 +423,10 @@ async function initHomePage() {
       statRow.appendChild(
         el("div", { class: "stat-col" }, [
           el("span", { class: "eyebrow", text: "Last Result" }),
-          el("div", {
-            class: `stat-value nums ${won ? "result-win" : "result-loss"}`,
-            text: `${lastResult.our_score} – ${lastResult.opponent_score}`,
-          }),
+          el("div", { class: "stat-value nums" }, [
+            el("span", { class: `stat-result-badge ${won ? "is-win" : "is-loss"}`, text: won ? "W" : "L" }),
+            el("span", { text: `${lastResult.our_score} – ${lastResult.opponent_score}` }),
+          ]),
           el("p", { class: "stat-meta", text: gameLine(lastResult) }),
           el("p", { class: "stat-meta nums", text: lastResult.date }),
         ])
@@ -548,83 +556,68 @@ async function initHomePage() {
   // and the standings teaser, not at the very top of the page.
   if (homeBlock?.body) main.appendChild(el("p", { class: "page-intro", text: homeBlock.body }));
 
-  const standingsRows = [...(standings?.rows || [])].sort(compareStandingsRows);
+  // Abbreviated standings (Overall W-L only, best overall record first)
+  // beside a random Sponsor Spotlight - the full league table lives on
+  // standings.html, so Home only needs an at-a-glance version.
+  const byOverall = (a, b) => {
+    const ar = parseRecord(a.overall_record);
+    const br = parseRecord(b.overall_record);
+    return br.wins - ar.wins || ar.losses - br.losses || compareStandingsRows(a, b);
+  };
+  const standingsRows = [...(standings?.rows || [])].sort(byOverall);
+  const spotlight = sponsors.length ? sponsors[Math.floor(Math.random() * sponsors.length)] : null;
+
+  const homeCards = [];
   if (standingsRows.length) {
-    const tbody = el("tbody");
-    for (const row of standingsRows) {
-      const isUs = logoBlock && (row.school || "").toLowerCase() === (logoBlock.title || "").toLowerCase();
-      const [leagueWins, leagueLosses] = (row.league_record || "-").split("-");
-      const [overallWins, overallLosses] = (row.overall_record || "-").split("-");
-      tbody.appendChild(
-        el("tr", isUs ? { class: "standings-row-us" } : {}, [
-          el("td", { class: "col-school" }, [
-            row.link
-              ? el("a", { href: row.link, target: "_blank", text: row.school || "" })
-              : el("span", { text: row.school || "" }),
-          ]),
-          el("td", { class: "nums", text: leagueWins || "" }),
-          el("td", { class: "nums", text: leagueLosses || "" }),
-          el("td", { class: "nums", text: overallWins || "" }),
-          el("td", { class: "nums", text: overallLosses || "" }),
-          el("td", { class: "nums", text: row.league_pf || "" }),
-          el("td", { class: "nums", text: row.league_pa || "" }),
-          el("td", { class: "nums", text: row.streak || "" }),
-        ])
-      );
-    }
-    main.appendChild(
-      el("div", { class: "section-divider" }, [
-        el("div", { class: "section-heading" }, [
-          el("h2", { text: logoBlock?.league_name || "League Standings" }),
-          el("span", { class: "eyebrow", text: "Varsity" }),
-        ]),
-        el("table", { class: "standings-table", style: "margin-top:0.75rem" }, [
-          el(
-            "colgroup",
-            {},
-            ["25%", "9.375%", "9.375%", "9.375%", "9.375%", "9.375%", "9.375%", "18.75%"].map((w) => el("col", { style: `width:${w}` }))
-          ),
+    homeCards.push(
+      el("div", { class: "home-card" }, [
+        el("span", { class: "eyebrow", text: "Varsity Standings · Overall" }),
+        el("h3", { class: "home-card-title", text: logoBlock?.league_name || "League Standings" }),
+        el("table", { class: "standings-mini" }, [
           el("thead", {}, [
             el("tr", {}, [
-              el("th", { class: "col-school", rowspan: "2", text: "School" }),
-              el("th", { colspan: "2", text: "League" }),
-              el("th", { colspan: "2", text: "Overall" }),
-              el("th", { rowspan: "2", text: "PF" }),
-              el("th", { rowspan: "2", text: "PA" }),
-              el("th", { rowspan: "2", text: "Streak" }),
-            ]),
-            el("tr", {}, [
-              el("th", { text: "W" }),
-              el("th", { text: "L" }),
+              el("th", { class: "col-school", text: "School" }),
               el("th", { text: "W" }),
               el("th", { text: "L" }),
             ]),
           ]),
-          tbody,
+          el(
+            "tbody",
+            {},
+            standingsRows.map((row) => {
+              const isUs = logoBlock && (row.school || "").toLowerCase() === (logoBlock.title || "").toLowerCase();
+              const { wins, losses } = parseRecord(row.overall_record);
+              return el("tr", isUs ? { class: "standings-row-us" } : {}, [
+                el("td", { class: "col-school" }, [
+                  el("span", { class: "school-badge", "aria-hidden": "true", style: schoolBadgeStyle(row.school), text: schoolInitials(row.school) }),
+                  el("span", { text: row.school || "" }),
+                ]),
+                el("td", { class: "nums", text: String(wins) }),
+                el("td", { class: "nums", text: String(losses) }),
+              ]);
+            })
+          ),
         ]),
         el("a", { class: "stat-list-link", href: "standings.html", text: "Full standings →" }),
       ])
     );
   }
-
-  if (sponsors.length) {
-    const sortedSponsors = [...sponsors].sort((a, b) => {
-      const tierDiff = SPONSOR_TIERS.indexOf(a.tier) - SPONSOR_TIERS.indexOf(b.tier);
-      return tierDiff !== 0 ? tierDiff : (a.name || "").localeCompare(b.name || "");
-    });
-    main.appendChild(
-      sectionDivider("Sponsors", [
-        el(
-          "p",
-          { class: "sponsors" },
-          sortedSponsors.flatMap((s, i) => [
-            i > 0 ? document.createTextNode(" · ") : null,
-            s.website ? el("a", { href: s.website, target: "_blank", text: s.name || "" }) : el("span", { text: s.name || "" }),
-          ].filter(Boolean))
-        ),
-      ])
+  if (spotlight) {
+    homeCards.push(
+      el("div", { class: "home-card home-card--sponsor" }, [
+        el("span", { class: "eyebrow", text: "Sponsor Spotlight" }),
+        spotlight.tier ? el("span", { class: "sponsor-tier", text: spotlight.tier }) : null,
+        el("h3", { class: "sponsor-spotlight-name", text: spotlight.name || "" }),
+        spotlight.kind ? el("p", { class: "sponsor-spotlight-kind", text: spotlight.kind }) : null,
+        spotlight.website
+          ? el("a", { class: "sponsor-spotlight-link", href: spotlight.website, target: "_blank", rel: "noopener", text: "Visit website →" })
+          : null,
+        el("p", { class: "sponsor-spotlight-thanks", text: "Thank you for supporting Panther basketball." }),
+        el("a", { class: "stat-list-link", href: "sponsors.html", text: "All sponsors →" }),
+      ].filter(Boolean))
     );
   }
+  if (homeCards.length) main.appendChild(el("div", { class: "home-split section-divider" }, homeCards));
 }
 
 // Renders `body` as real HTML (innerHTML), not plain text - the Mission

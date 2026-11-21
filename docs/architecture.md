@@ -26,14 +26,17 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   `site.js` builds both the header (the brand block — see below) and the
   sidebar nav, and is called by every `initXPage()` before it renders its
   own content. The nav is a fixed structure (`NAV_STRUCTURE` in `site.js`),
-  not purely `order`-driven like the admin's nav groups — Home and Store
-  are top-level links, then three hardcoded group headers (Media,
+  not purely `order`-driven like the admin's nav groups — Home, Store, and
+  Donate are top-level links, then three hardcoded group headers (Media,
   Basketball, Booster) each list a fixed set of generators as indented
   sub-links (`.sub-link`), Rosters' per-team links nesting one level
   deeper still (`.sub-link--team`). A group item can also be a
   plain `{label, href}` object instead of a generator name — an external
-  link with no page/Content Block of its own, opened in a new tab (Booster's
-  "Panther Team Store", which points at the promo-ops.com store). Each link's own label still comes from
+  link with no page/Content Block of its own, opened in a new tab (none
+  currently use this). A top-level generator entry can carry an `href`
+  too, which overrides its page link with an external one (new tab) while
+  keeping the block's `title` as the label — Store uses this to point
+  straight at the promo-ops.com team store instead of `store.html`. Each link's own label still comes from
   its Content Block's `title` (falling back to the generator's own name if
   that block doesn't exist yet, e.g. before Store/Sponsorships/Donate are
   created in the admin) so the admin can rename any page freely — only the
@@ -60,6 +63,16 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   system has no vertical-nav component, but "no filled blocks" still
   applies to whatever skins the existing sidebar/central-column
   structure (that structure itself predates this system and stays).
+  Deliberate exceptions, added on request because the sidebar/titles
+  blended into the grey background: the sidebar record box
+  (`.record-card`) and nav group headers (`.nav-group-label`) are solid
+  black bands with yellow text, matching the header bar; every page's
+  `#page-title` is a white plate with a black left bar and yellow
+  underline; `.section-heading h2` gets just the black left bar; the
+  Home page `.stat-row` (Last Result/Next Game/Upcoming) is a white card
+  like `.home-card` (a dark version was tried and judged too heavy), with
+  larger values and a green/red W/L badge (`.stat-result-badge`) on the
+  last result.
   `.plate` is adopted verbatim from the bundle: a sepia/desaturated
   filter (`sepia(0.22) saturate(0.82) contrast(1.05)`) plus a matted
   border, wrapped around every real photo (team/coach/news/gallery
@@ -128,15 +141,17 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   the News feed moved in ahead of it, so it's now stat row → News → body
   text → standings. Mission Statement is **not** shown on Home at all
   anymore — it has its own dedicated page (see Content Blocks → page
-  mapping). The standings section (last on the page) shows the **full**
-  `/standings` list (not a top-N teaser), sorted by
-  `compareStandingsRows()` (best League record first, Overall record as
-  the tiebreaker — parsed from the scraped "W-L" strings — since the
-  scraped `rank` field isn't used anywhere on this site), with no Rank
-  column, and highlights whichever row's `school` matches the Logo
-  block's `title` (`.standings-row-us`) — this is how the site knows "the
-  row for us" without a separate flag on the scraped data. Its heading
-  uses the Logo block's `league_name` with a "Varsity Standings" eyebrow.
+  mapping). Below the body text, a two-column `.home-split` row (stacks
+  on narrow screens) holds two `.home-card`s: on the left an
+  **abbreviated** standings table (`.standings-mini` — School + Overall
+  W/L only, sorted best overall record first with
+  `compareStandingsRows()` as the tiebreaker, shield badges via
+  `schoolBadgeStyle()`/`schoolInitials()`, our row highlighted by Logo
+  block `title` match, "Full standings →" to `standings.html`), headed by
+  the Logo block's `league_name`; on the right a "Sponsor Spotlight" — one
+  sponsor picked at random on each page load (name, tier, `kind`,
+  website link, "All sponsors →"). This replaced the old full sponsor
+  name strip, which is no longer on Home (`sponsors.html` lists them all).
 - **Standings page + admin League Standings table**: `initStandingsPage`
   (`site.js`) and the admin's `renderStandingsSection` (`admin/app.js`)
   render the same table layout from the same helpers in `shared.js`
