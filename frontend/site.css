@@ -1357,6 +1357,103 @@ tbody tr:hover {
   color: var(--muted);
 }
 
+/* Regional Leagues' Ranking tab (initRegionalLeaguesPage) - same
+   .standings-table--full skin, plus click-to-sort headers and a League
+   column. Its per-league tables are plain buildStandingsTable output. */
+.regional-table thead th.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.regional-table thead th.th-sortable:hover,
+.regional-table thead th.th-sorted {
+  color: var(--color-white);
+}
+
+.regional-table .col-league {
+  text-align: left;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.regional-table td.col-school {
+  font-size: 1.1rem;
+}
+
+/* Regional Leagues' School Map tab (buildSchoolMap in site.js). */
+.school-map {
+  height: 540px;
+  border: 1px solid var(--color-border, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--color-surface, #fff);
+}
+
+@media (max-width: 720px) {
+  .school-map {
+    height: 420px;
+  }
+}
+
+.school-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.school-map-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.map-key {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-text);
+  border: 2px solid var(--color-white, #fff);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-text) 25%, transparent);
+}
+
+.map-key--selected {
+  background: var(--color-accent);
+}
+
+.map-key--us {
+  background: var(--color-yellow-dk);
+  border-color: var(--color-text);
+  box-shadow: none;
+}
+
+.map-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.map-popup-name {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+}
+
+.map-popup-address {
+  color: var(--muted);
+}
+
+.map-popup-links {
+  display: flex;
+  gap: 0.9rem;
+  margin-top: 0.2rem;
+}
+
 @media (max-width: 720px) {
   .standings-table--full .col-optional {
     display: none;

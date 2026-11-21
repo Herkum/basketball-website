@@ -126,10 +126,49 @@ const SCHOOL_COLORS = {
   calabasas: { bg: "#e0c9a0", fg: "#000000", border: "#000000" }, // calabasasathletics.net gold & black
 };
 
-// Inline CSS custom properties for a school's badge ("" when unmapped) -
+// WCAG relative luminance / contrast ratio for "#rrggbb" colors.
+function colorLuminance(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(a, b) {
+  const [hi, lo] = [colorLuminance(a), colorLuminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+// Shield colors from a team's MaxPreps school colors (color1/color2,
+// "#rrggbb" - see Rankings in docs/content-schemas.md), for schools not
+// in the hand-sampled SCHOOL_COLORS map. Same conventions as that map:
+// fill = primary, initials = secondary, outline = secondary unless it's
+// near-white (then the fill again, so the shield keeps its edge on the
+// light page). MaxPreps pairs are often two darks (navy/gray, red/black)
+// whose initials would be unreadable, so below 3:1 the initials switch
+// to whichever of black/white reads better on the fill, while the
+// outline still carries the secondary color.
+function badgeColorsFromTeam(color1, color2) {
+  const valid = (c) => /^#[0-9a-f]{6}$/i.test(c || "");
+  if (!valid(color1)) return null;
+  const bg = color1;
+  const secondary = valid(color2) ? color2 : "#ffffff";
+  const nearWhite = (c) => colorLuminance(c) > 0.85;
+  let border = nearWhite(secondary) ? bg : secondary;
+  // A near-white fill with a near-white outline would vanish entirely.
+  if (nearWhite(border)) border = "#201f1d";
+  let fg = secondary;
+  if (contrastRatio(bg, fg) < 3) fg = contrastRatio(bg, "#ffffff") >= contrastRatio(bg, "#000000") ? "#ffffff" : "#000000";
+  return { bg, fg, border };
+}
+
+// Inline CSS custom properties for a school's badge ("" when unknown) -
 // .school-badge reads --badge-bg/--badge-fg/--badge-border with neutral
-// fallbacks.
-function schoolBadgeStyle(name) {
-  const colors = SCHOOL_COLORS[(name || "").trim().toLowerCase()];
+// fallbacks. The hand-sampled SCHOOL_COLORS entry wins when there is one;
+// otherwise `team` (any object with MaxPreps color1/color2, e.g. a
+// Rankings team row) supplies them.
+function schoolBadgeStyle(name, team) {
+  const colors = SCHOOL_COLORS[(name || "").trim().toLowerCase()] || badgeColorsFromTeam(team?.color1, team?.color2);
   return colors ? `--badge-bg:${colors.bg};--badge-fg:${colors.fg};--badge-border:${colors.border}` : "";
 }

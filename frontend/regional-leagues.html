@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Regional Leagues</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Leaflet (School Map tab) - pinned version with SRI hashes. -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="site.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <div class="brand-logo brand-logo-fallback">NP</div>
+      <div>
+        <div class="brand-name">Newbury Park Panthers</div>
+        <div class="brand-tagline">Boys Basketball</div>
+      </div>
+    </div>
+  </header>
+  <div class="layout">
+    <aside id="site-sidebar"></aside>
+    <div class="central-column">
+      <main>
+        <h1 id="page-title"></h1>
+        <div id="page-content"></div>
+      </main>
+    </div>
+  </div>
+  <footer id="site-footer" class="site-footer"></footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="config.js"></script>
+  <script src="shared.js"></script>
+  <script src="site.js"></script>
+  <script>initRegionalLeaguesPage();</script>
+</body>
+</html>
