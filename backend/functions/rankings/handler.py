@@ -3,9 +3,12 @@ leagues, then rates them with a capped-margin Simple Rating System (SRS)
 so teams that never play each other can still be ranked
 through common opponents.
 
-Like `standings`, this is a screen-scraper, not CRUD: `GET` (public) serves
-the cached result instantly, and a direct/EventBridge invoke (no
-`requestContext`) does the actual scrape + recompute. A full scrape fetches
+A screen-scraper, not CRUD: `GET` (public) serves the cached result
+instantly, and a direct/EventBridge invoke (no `requestContext`) does the
+actual scrape + recompute. It's also the only MaxPreps scrape on the site:
+our own league's table (the `standings: True` entry in TRACKED_LEAGUES) is
+written to the League Standings cache as part of every refresh (see
+`_write_standings`) - the `standings` Lambda just serves and hand-edits it. A full scrape fetches
 anywhere from ~100 to a few hundred MaxPreps pages (see "outside opponents"
 in `_refresh`) and takes minutes, far past API Gateway's 30s integration
 timeout - so the admin's `POST` (JWT) doesn't scrape itself: it re-invokes
@@ -29,6 +32,9 @@ import boto3
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
 users_table = dynamodb.Table(os.environ["USERS_TABLE_NAME"])
+# Our own league's table also feeds the League Standings cache (see
+# _write_standings) - one MaxPreps scrape serves both.
+standings_table = dynamodb.Table(os.environ["STANDINGS_TABLE_NAME"])
 lambda_client = boto3.client("lambda")
 
 CACHE_ID = "current"
@@ -45,9 +51,10 @@ MAXPREPS = "https://www.maxpreps.com"
 # membership from there, so a new season (or a realignment) needs no code
 # change as long as the seed school is still in a league with that slug.
 # `league` is the slug we expect - a mismatch is reported in `warnings`
-# rather than silently tracking the wrong league.
+# rather than silently tracking the wrong league. `standings: True` marks
+# our own league: its table is also written to the League Standings cache.
 TRACKED_LEAGUES = [
-    {"league": "marmonte", "section": "Southern", "seed": "/ca/newbury-park/newbury-park-panthers/"},
+    {"league": "marmonte", "section": "Southern", "seed": "/ca/newbury-park/newbury-park-panthers/", "standings": True},
     {"league": "coastal-canyon", "section": "Southern", "seed": "/ca/simi-valley/simi-valley-pioneers/"},
     {"league": "channel", "section": "Southern", "seed": "/ca/ventura/ventura-cougars/"},
     {"league": "citrus-coast", "section": "Southern", "seed": "/ca/fillmore/fillmore-flashes/"},
@@ -142,11 +149,18 @@ def find_league_path(school_path):
 
 
 def scrape_league(league_path):
-    """Same server-rendered table the `standings` Lambda parses (see its
-    `scrape_standings` docstring for the cell layout) - each member's name,
-    school URL path, and MaxPreps' own league/overall W-L, PF/PA, and
-    streak, which the public Regional Leagues page's per-league tables
-    show in the same layout as our own League Standings."""
+    """A MaxPreps league standings page - server-rendered, no JS needed.
+    Each row is <tr><td>rank</td><td class="school-details">...
+    <a href=".../ca/<city>/<school>/basketball/" class="school-link">
+    <span class="school-name">Name</span>...</td><td>league W-L</td>
+    <td>league pct</td><td>league PF</td><td>league PA</td>
+    <td>overall W-L</td><td>overall pct</td><td>overall PF</td>
+    <td>overall PA</td><td>streak</td></tr> (streak cells hold an inline
+    comment, e.g. "3<!-- -->L", that _strip_tags removes). Returns each
+    member's school path, name, and MaxPreps' own table numbers - shown on
+    the Regional Leagues page's per-league tables, and for our league,
+    written to the League Standings cache too. Fragile by nature: a markup
+    change silently yields fewer/no rows."""
     html = _fetch(league_path)
     tbody = html[html.find("<tbody") : html.find("</tbody>")]
     members = []
@@ -163,16 +177,46 @@ def scrape_league(league_path):
             {
                 "team_id": match.group(1),
                 "name": _unescape(match.group(2)),
+                "rank": cells[0],
                 "league_record": cells[2],
+                "league_pct": cells[3],
                 "league_pf": cells[4],
                 "league_pa": cells[5],
                 "overall_record": cells[6],
+                "overall_pct": cells[7],
                 "overall_pf": cells[8],
                 "overall_pa": cells[9],
                 "streak": cells[10],
             }
         )
     return members
+
+
+def _write_standings(members, source_url, warnings):
+    """Writes our league's table to the League Standings cache (the
+    `standings` table's "current" row, same row shape it always had).
+    `link` is admin-set, never scraped, so it's carried forward from the
+    previous cache by case-insensitive school name. A table that parses as
+    zero rows (a MaxPreps markup change) keeps the previous standings
+    rather than wiping them. Failures only warn - the rankings refresh
+    carries on either way."""
+    try:
+        if not members:
+            warnings.append("standings: our league's table parsed as zero rows - kept the previous standings")
+            return
+        cached = standings_table.get_item(Key={"cache_id": CACHE_ID}).get("Item") or {}
+        links = {(r.get("school") or "").lower(): r.get("link", "") for r in cached.get("rows", [])}
+        fields = ("rank", "league_record", "league_pct", "league_pf", "league_pa",
+                  "overall_record", "overall_pct", "overall_pf", "overall_pa", "streak")
+        rows = [
+            {"school": m["name"], **{f: m.get(f, "") for f in fields}, "link": links.get(m["name"].lower(), "")}
+            for m in members
+        ]
+        standings_table.put_item(
+            Item={"cache_id": CACHE_ID, "source_url": source_url, "updated_at": int(time.time()), "rows": rows}
+        )
+    except Exception as exc:
+        warnings.append(f"standings write: {exc}")
 
 
 # Slugs whose real name isn't just the title-cased words.
@@ -449,6 +493,10 @@ def _refresh(deadline):
         except Exception as exc:
             warnings.append(f"league {spec['league']}: {exc}")
             continue
+        # Written now, not at the end, so our League Standings update even
+        # if the long schedule/rating stage below fails.
+        if spec.get("standings"):
+            _write_standings(members, MAXPREPS + league_path, warnings)
         leagues.append(
             {"league": slug, "name": _league_display_name(slug), "section": spec["section"], "url": MAXPREPS + league_path}
         )

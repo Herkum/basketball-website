@@ -189,8 +189,9 @@ Admin.dc.html`, styled on the same Classical tokens) in `admin/app.js`:
   Schedule (`renderScheduleSection` — Season loader, team filter, List/
   Calendar toggle) and League Standings (`renderStandingsSection` — a
   singleton cache with no per-row endpoint, so Add/Edit/Delete each build
-  the whole new `rows` array and `PUT /standings`; it also hosts the
-  Regional Rankings refresh panel).
+  the whole new `rows` array and `PUT /standings`). Its one "Refresh from
+  MaxPreps" panel starts the rankings refresh (`POST /rankings`), which
+  also rewrites this table, then polls and reloads the table when done.
 
 ## Backend & API
 
@@ -200,9 +201,13 @@ Admin.dc.html`, styled on the same Classical tokens) in `admin/app.js`:
   Adding a keyed-list resource takes one entry in `local.functions`
   (`infra/lambda.tf`), a table (`infra/dynamodb.tf`), and `local.api_routes`
   (`infra/api.tf`). `standings`, `rankings`, and `uploads` are singleton
-  actions with bespoke routes in `api.tf` (`GET`/`POST`/`PUT /standings`,
+  actions with bespoke routes in `api.tf` (`GET`/`PUT /standings`,
   `GET`/`POST /rankings`, `POST /uploads`) but deploy through the same
-  `local.functions`. Routes are per real method, never `ANY` (see gotchas).
+  `local.functions`. The `rankings` refresh is the only MaxPreps scrape:
+  it also writes our league's table to the Standings cache (its
+  `extra_env` gives it `STANDINGS_TABLE_NAME`, and the
+  `rankings_standings_write` policy in `api.tf` lets it read/replace
+  that one row). Routes are per real method, never `ANY` (see gotchas).
 - **Public reads**: GET routes are `authorization_type = "NONE"` (`api.tf`'s
   route locals: `public = m == "GET" ? lookup(r, "public_get", true) :
   false`) — `/users` opts out with `public_get = false`; every write is

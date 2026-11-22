@@ -195,11 +195,11 @@ resource "aws_apigatewayv2_route" "uploads" {
   authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
 }
 
-# Standings is a singleton cache (GET the cached scrape, POST to trigger a
-# fresh scrape) rather than a keyed list, so it doesn't fit the generic
-# item/list route shape every other resource uses - bespoke here, same
-# pattern as uploads above, reusing the standings Lambda from the generic
-# `local.functions` map.
+# Standings is a singleton cache (GET it, PUT manual edits) rather than a
+# keyed list, so it doesn't fit the generic item/list route shape every
+# other resource uses - bespoke here, same pattern as uploads above,
+# reusing the standings Lambda from the generic `local.functions` map. Its
+# rows are written by the rankings refresh, so there's no scrape route.
 resource "aws_apigatewayv2_integration" "standings" {
   api_id                 = aws_apigatewayv2_api.admin.id
   integration_type       = "AWS_PROXY"
@@ -223,17 +223,8 @@ resource "aws_apigatewayv2_route" "standings_get" {
   authorization_type = "NONE"
 }
 
-resource "aws_apigatewayv2_route" "standings_post" {
-  api_id    = aws_apigatewayv2_api.admin.id
-  route_key = "POST /standings"
 
-  target             = "integrations/${aws_apigatewayv2_integration.standings.id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
-}
-
-# PUT persists manually-edited rows (e.g. fixing a scrape error) without
-# scraping, distinct from POST which triggers a fresh scrape.
+# PUT persists manually-edited rows (e.g. fixing a scrape error).
 resource "aws_apigatewayv2_route" "standings_put" {
   api_id    = aws_apigatewayv2_api.admin.id
   route_key = "PUT /standings"
@@ -294,6 +285,23 @@ resource "aws_iam_role_policy" "rankings_self_invoke" {
       Effect   = "Allow"
       Action   = "lambda:InvokeFunction"
       Resource = "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-rankings"
+    }]
+  })
+}
+
+# The rankings refresh also writes our league's table to the League
+# Standings cache (one MaxPreps scrape for both) - read the old row to carry
+# admin-set links forward, then replace it.
+resource "aws_iam_role_policy" "rankings_standings_write" {
+  name = "${var.project_name}-rankings-standings-write"
+  role = aws_iam_role.function_role["rankings"].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+      Resource = aws_dynamodb_table.standings.arn
     }]
   })
 }

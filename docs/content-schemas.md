@@ -91,25 +91,27 @@ lists live as constants in `admin/app.js`.
   Locations in the admin, gated on `Edit Season`. Picked by Schedule's
   Away/Neutral games; the public Schedule and Home resolve games'
   `location_id` against `/locations`.
-- **`Standings`** (PK `cache_id` = `"current"`, a singleton): `source_url`
-  (MaxPreps league page, editable in the admin so a new season needs no
-  redeploy), `updated_at`, `rows` (`rank`, `school`, `league_record`/
+- **`Standings`** (PK `cache_id` = `"current"`, a singleton): our league's
+  table. `source_url` (the MaxPreps league page it came from, for
+  reference), `updated_at`, `rows` (`rank`, `school`, `league_record`/
   `_pct`/`_pf`/`_pa`, `overall_record`/`_pct`/`_pf`/`_pa`, `streak`, `link`
-  — `link` is admin-set, never scraped). `standings/handler.py` is a
-  screen-scraper: `GET` (public) serves the cache, never scraping live;
-  `POST` (JWT, the admin's "Refresh from source") fetches `source_url`,
-  regex-parses the server-rendered table (markup shape in the docstring),
-  and overwrites the cache, carrying each school's `link` forward by
-  case-insensitive name match; `PUT` (JWT, the admin's Add/Edit/Delete
-  school dialogs) saves `rows` as given — a later refresh still
-  overwrites everything but `link`. A fetch/parse error returns 502, but
-  a markup change that parses as zero rows won't — inherent to scraping.
-  An invoke with no `requestContext` refreshes from the saved
-  `source_url`; no schedule triggers it today.
-- **`Rankings`** (PK `cache_id`, four singleton rows): regional SRS ratings
-  across `TRACKED_LEAGUES` in `rankings/handler.py` (Marmonte, Coastal
-  Canyon, Channel, Citrus Coast, Tri-Valley, Frontier, Mission, Gold
-  Coast, West Valley, Valley Mission).
+  — `link` is admin-set, never scraped). The rows are written by the
+  **Rankings refresh**, not scraped separately: our league is the
+  `standings: True` entry in `TRACKED_LEAGUES`, and `_write_standings()`
+  saves its already-parsed table here right after the league pages are
+  scraped (before the long rating stage, so a later failure doesn't block
+  it), carrying each school's `link` forward by case-insensitive name. A
+  table that parses as zero rows keeps the previous standings and adds a
+  warning. `standings/handler.py` only serves and edits the row: `GET`
+  (public) and `PUT` (JWT, `Edit Season` — the admin's Add/Edit/Delete
+  school dialogs, saving `rows` as given; the next refresh overwrites
+  everything but `link`). No scrape route, and a direct invoke is
+  refused.
+- **`Rankings`** (PK `cache_id`, four singleton rows): the site's one
+  MaxPreps scrape — regional SRS ratings, plus our league's table written
+  to `Standings` (above). Ratings span `TRACKED_LEAGUES` in
+  `rankings/handler.py` (Marmonte, Coastal Canyon, Channel, Citrus Coast,
+  Tri-Valley, Frontier, Mission, Gold Coast, West Valley, Valley Mission).
   - **`"current"`**: `teams` (tracked teams only — `name`, `league`,
     `section`, `record`, `games`, `avg_margin`, `sos`, `srs`/`srs_rank`,
     `url`, MaxPreps' own `league_*`/`overall_*`/`streak` table numbers,
@@ -148,7 +150,8 @@ lists live as constants in `admin/app.js`.
     `refresh_started_at` while a run is live. Refreshes come from the daily
     EventBridge rule (`cron(0 12 * * ? *)`), `aws lambda invoke
     --function-name basketball-website-rankings --payload '{}' out.json`,
-    or the admin's "Refresh rankings" button (League Standings tab). A
+    or the admin's "Refresh from MaxPreps" button (League Standings tab),
+    which also updates `Standings`. A
     scrape takes minutes — past API Gateway's 30s — so `POST /rankings`
     (JWT, `Edit Season`) re-invokes the Lambda asynchronously and returns
     202. Every refresh holds the `"refresh"` lock (conditional put,

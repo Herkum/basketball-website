@@ -50,13 +50,12 @@ locals {
       table_arn  = aws_dynamodb_table.photos.arn
       table_name = aws_dynamodb_table.photos.name
     }
+    # Serves + hand-edits the League Standings cache; the rows themselves
+    # are written by the rankings refresh (one MaxPreps scrape for both).
     standings = {
       dir        = "standings"
       table_arn  = aws_dynamodb_table.standings.arn
       table_name = aws_dynamodb_table.standings.name
-      # scrapes an external page (MaxPreps) - needs more than the default
-      # 10s other resources' simple DynamoDB CRUD calls get.
-      timeout = 20
     }
     rankings = {
       dir        = "rankings"
@@ -68,6 +67,9 @@ locals {
       # starting outside scrapes 2 min before this limit. 900s is Lambda's
       # max.
       timeout = 900
+      # Also writes our league's table to the League Standings cache - see
+      # the rankings_standings_write policy in api.tf.
+      extra_env = { STANDINGS_TABLE_NAME = aws_dynamodb_table.standings.name }
     }
     locations = {
       dir        = "locations"
@@ -147,10 +149,13 @@ resource "aws_lambda_function" "function" {
   timeout          = lookup(each.value, "timeout", 10)
 
   environment {
-    variables = {
-      TABLE_NAME       = each.value.table_name
-      USERS_TABLE_NAME = aws_dynamodb_table.admin_allowlist.name
-    }
+    variables = merge(
+      {
+        TABLE_NAME       = each.value.table_name
+        USERS_TABLE_NAME = aws_dynamodb_table.admin_allowlist.name
+      },
+      lookup(each.value, "extra_env", {}),
+    )
   }
 }
 

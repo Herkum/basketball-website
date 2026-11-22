@@ -1684,7 +1684,7 @@ async function renderStandingsSection(container) {
   const head = el("div", { class: "admin-section-head" }, [
     el("div", {}, [
       el("h1", { text: "League Standings" }),
-      el("p", { class: "admin-section-blurb", text: "Marmonte League table shown on the home page. Pulled from MaxPreps, editable by hand." }),
+      el("p", { class: "admin-section-blurb", text: "Our league's table, shown across the site. Pulled from MaxPreps along with the Regional Leagues rankings, editable by hand." }),
     ]),
     el("button", { type: "button", class: "btn btn-primary", text: "Add school" }).also((b) => b.addEventListener("click", () => openSchoolModal(null))),
   ]);
@@ -1694,8 +1694,8 @@ async function renderStandingsSection(container) {
   container.appendChild(toolsBox);
   const tableBox = el("div", {});
   container.appendChild(tableBox);
-  const rankingsBox = el("div", {});
-  container.appendChild(rankingsBox);
+  let standingsCache = null;
+  let rankingsCache = null;
 
   async function persistRows(newRows) {
     const fresh = await apiFetch("/standings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows: newRows }) });
@@ -1716,46 +1716,6 @@ async function renderStandingsSection(container) {
         paint(fresh);
       },
     });
-  }
-
-  function paintTools(cache) {
-    toolsBox.innerHTML = "";
-    const sourceInput = el("input", { class: "admin-input", value: cache?.source_url || "" });
-    const refreshBtn = el("button", { type: "button", class: "btn btn-secondary", text: "Refresh from source" });
-    const refreshErrorEl = el("p", { class: "admin-help", style: "color:#8c2f21" });
-    refreshErrorEl.hidden = true;
-    const updatedText = cache?.updated_at ? `Last updated ${new Date(cache.updated_at * 1000).toLocaleString()}` : "Never refreshed yet";
-
-    refreshBtn.addEventListener("click", async () => {
-      refreshErrorEl.hidden = true;
-      refreshBtn.disabled = true;
-      refreshBtn.textContent = "Refreshing…";
-      try {
-        const fresh = await apiFetch("/standings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ source_url: sourceInput.value }) });
-        if (fresh && fresh.error) throw new Error(fresh.error);
-        showToast("Standings refreshed from MaxPreps");
-        paint(fresh);
-      } catch (err) {
-        refreshBtn.disabled = false;
-        refreshBtn.textContent = "Refresh from source";
-        refreshErrorEl.textContent = `Refresh failed: ${err.message}`;
-        refreshErrorEl.hidden = false;
-      }
-    });
-
-    toolsBox.appendChild(
-      el("div", { class: "admin-standings-tools" }, [
-        el("div", { class: "admin-field" }, [el("label", { class: "admin-lbl", text: "Source (MaxPreps)" }), sourceInput]),
-        refreshBtn,
-        el("div", { class: "admin-standings-updated", text: updatedText }),
-      ])
-    );
-    toolsBox.appendChild(refreshErrorEl);
-    toolsBox.appendChild(
-      el("p", { class: "admin-help", style: "margin:8px 0 0" }, [
-        document.createTextNode("Refreshing from the source overwrites every manual edit except Link, which is never scraped."),
-      ])
-    );
   }
 
   function paintTable() {
@@ -1864,25 +1824,29 @@ async function renderStandingsSection(container) {
   }
 
   function paint(cache) {
+    standingsCache = cache;
     rows = cache?.rows || [];
-    paintTools(cache);
+    paintRefresh();
     paintTable();
   }
 
-  // Regional Rankings (the public Regional Leagues page) refresh. A scrape
-  // takes minutes, so POST /rankings only starts it in the background and
-  // returns 202; while `refresh_started_at` is set we poll GET /rankings
-  // until the run finishes, stopping once this section is navigated away.
-  let rankingsPoll = null;
-  function paintRankings(r) {
-    rankingsBox.innerHTML = "";
-    clearTimeout(rankingsPoll);
+  // One MaxPreps refresh updates both this table and the Regional Leagues
+  // rankings (the rankings Lambda writes our league's table here as part of
+  // its scrape). It takes minutes, so POST /rankings only starts it in the
+  // background and returns 202; while `refresh_started_at` is set we poll
+  // GET /rankings, then reload this table when the run finishes. Polling
+  // stops once this section is navigated away.
+  let refreshPoll = null;
+  function paintRefresh() {
+    toolsBox.innerHTML = "";
+    clearTimeout(refreshPoll);
+    const r = rankingsCache;
     const running = Boolean(r?.refresh_started_at);
-    const updatedText = r?.updated_at ? `Last updated ${new Date(r.updated_at * 1000).toLocaleString()}` : "Never refreshed yet";
+    const when = (t) => (t ? new Date(t * 1000).toLocaleString() : "never");
     const statusText = running
       ? `Refresh running since ${new Date(r.refresh_started_at * 1000).toLocaleTimeString()} — this usually takes a few minutes.`
-      : "Refreshes automatically every morning. Refresh now to pick up last night's scores sooner.";
-    const btn = el("button", { type: "button", class: "btn btn-secondary", text: running ? "Refreshing…" : "Refresh rankings" });
+      : "One refresh updates this table and the Regional Leagues rankings. Runs automatically every morning; refreshing now takes a few minutes.";
+    const btn = el("button", { type: "button", class: "btn btn-secondary", text: running ? "Refreshing…" : "Refresh from MaxPreps" });
     btn.disabled = running;
     const errorEl = el("p", { class: "admin-help", style: "color:#8c2f21" });
     errorEl.hidden = true;
@@ -1894,35 +1858,47 @@ async function renderStandingsSection(container) {
       try {
         const res = await apiFetch("/rankings", { method: "POST" });
         if (res && res.error && !res.refresh_started_at) throw new Error(res.error);
-        showToast(res?.error ? "A refresh is already running" : "Rankings refresh started");
-        paintRankings({ ...r, refresh_started_at: res.refresh_started_at });
+        showToast(res?.error ? "A refresh is already running" : "Refresh started");
+        rankingsCache = { ...r, refresh_started_at: res.refresh_started_at };
+        paintRefresh();
       } catch (err) {
         btn.disabled = false;
-        btn.textContent = "Refresh rankings";
+        btn.textContent = "Refresh from MaxPreps";
         errorEl.textContent = `Refresh failed to start: ${err.message}`;
         errorEl.hidden = false;
       }
     });
 
-    rankingsBox.appendChild(el("h2", { class: "admin-subhead", text: "Regional Rankings", style: "margin:32px 0 0" }));
-    rankingsBox.appendChild(
+    toolsBox.appendChild(
       el("div", { class: "admin-standings-tools" }, [
         el("p", { class: "admin-help", style: "flex:1;min-width:260px;margin:0;padding-bottom:9px", text: statusText }),
         btn,
-        el("div", { class: "admin-standings-updated", text: updatedText }),
+        el("div", { class: "admin-standings-updated", text: `Standings updated ${when(standingsCache?.updated_at)} · Rankings updated ${when(r?.updated_at)}` }),
       ])
     );
-    rankingsBox.appendChild(errorEl);
+    toolsBox.appendChild(errorEl);
+    toolsBox.appendChild(
+      el("p", { class: "admin-help", style: "margin:8px 0 0" }, [
+        document.createTextNode("Refreshing overwrites every manual edit except Link, which is never scraped."),
+      ])
+    );
 
     if (running) {
-      rankingsPoll = setTimeout(async () => {
-        if (!rankingsBox.isConnected) return;
+      refreshPoll = setTimeout(async () => {
+        if (!toolsBox.isConnected) return;
         const fresh = await apiFetch("/rankings").catch(() => null);
-        if (!rankingsBox.isConnected) return;
-        if (fresh && !fresh.refresh_started_at && running) {
-          showToast(fresh.updated_at !== r?.updated_at ? "Rankings refreshed" : "Rankings refresh finished without new results — check CloudWatch logs");
+        if (!toolsBox.isConnected) return;
+        if (fresh && !fresh.refresh_started_at) {
+          const changed = fresh.updated_at !== r?.updated_at;
+          showToast(changed ? "Standings and rankings refreshed" : "Refresh finished without new results — check CloudWatch logs");
+          rankingsCache = fresh;
+          const freshStandings = await apiFetch("/standings").catch(() => null);
+          if (!toolsBox.isConnected) return;
+          paint(freshStandings || standingsCache);
+          return;
         }
-        paintRankings(fresh || r);
+        rankingsCache = fresh || r;
+        paintRefresh();
       }, 20000);
     }
   }
@@ -1935,8 +1911,8 @@ async function renderStandingsSection(container) {
     apiFetch("/rankings").catch(() => null),
   ]);
   ourSchool = (blocks || []).find((b) => b.generator === "Logo")?.title || "";
+  rankingsCache = rankings;
   paint(cache);
-  paintRankings(rankings);
 }
 
 /* ======================= Rosters (with Players drill) =================== */
