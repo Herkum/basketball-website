@@ -612,6 +612,10 @@ main {
 }
 .admin-standings-record {
   font-weight: 600;
+  white-space: nowrap;
+}
+.admin-standings-tbl th {
+  white-space: nowrap;
 }
 .admin-standings-tbl tr.admin-standings-us td {
   background: var(--color-accent-100);

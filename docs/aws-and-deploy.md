@@ -10,6 +10,17 @@
 - `infra/terraform.tfvars` (gitignored) holds the Google OAuth Client
   ID/Secret — ask the user for these if missing; don't invent placeholders.
 
+## Custom domain
+
+`nphsboysbasketball.com` and `www.nphsboysbasketball.com` are CloudFront
+aliases (`infra/s3_site.tf`), with a Route 53 zone and an ACM certificate
+(us-east-1, DNS-validated) in `infra/dns.tf`. The CloudFront default
+`*.cloudfront.net` URL still serves the site, but the deployed
+`admin/config.js` redirects sign-in to
+`https://nphsboysbasketball.com/admin/callback.html` — start an admin login
+from the custom domain, or the token exchange fails with `invalid_request`
+(the PKCE verifier is stored per-origin).
+
 ## Deploying
 
 ```
@@ -42,7 +53,7 @@ This requires `frontend/admin/config.js` to exist as a real local file (it's
 gitignored, never deployed — see the `static_files` exclusion in
 `infra/s3_site.tf`, which explicitly skips `admin/config.js` so this local
 file can never clobber the deployed templated one). If it's missing, recreate
-it from the deployed one (`curl https://<cloudfront-domain>/admin/config.js`)
+it from the deployed one (`curl https://nphsboysbasketball.com/admin/config.js`)
 but override `redirectUri`/`logoutUri` to
 `http://127.0.0.1:8000/admin/callback.html` and
 `http://127.0.0.1:8000/admin/index.html`.
@@ -62,7 +73,7 @@ local override, but simpler: `frontend/config.js` (also gitignored, also
 excluded from `static_files` in `infra/s3_site.tf`) just needs `apiBase`
 and `siteOrigin` pointing at the real deployed values — no OAuth fields,
 since every GET the public site makes is unauthenticated. If missing,
-recreate from `curl https://<cloudfront-domain>/config.js`. New public
+recreate from `curl https://nphsboysbasketball.com/config.js`. New public
 pages/features can and should be built and verified against
 `http://127.0.0.1:8000/...` before ever touching `terraform apply` for the
 S3/CloudFront side — the API itself has no "local" version so it's already

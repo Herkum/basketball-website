@@ -1251,7 +1251,7 @@ async function albumLinkOptions() {
   }));
   const gameOptions = games.map((g) => ({
     ref: `schedule:${defaultSeason()}:${g.game_id}`,
-    label: `Game: ${g.date || ""} ${g.home_away === "Home" ? "vs" : "at"} ${g.opponent || ""}`,
+    label: `Game: ${g.date || ""} ${matchupPrefix(g)} ${g.opponent || ""}`,
   }));
   return [...newsOptions, ...gameOptions];
 }
@@ -1366,13 +1366,15 @@ async function renderScheduleSection(container) {
       { key: "date", label: "Date", type: "date", required: true, span: 1 },
       { key: "time", label: "Tip-off", type: "text", span: 1, placeholder: "7:00 PM or TBA" },
       { key: "opponent", label: "Opponent", type: "text", required: true, span: 1 },
-      { key: "home_away", label: "Home or away", type: "select", options: ["Home", "Away"], span: 1 },
+      { key: "home_away", label: "Home, away, or neutral", type: "select", options: ["Home", "Away", "Neutral"], span: 1 },
       { key: "team_id", label: "Team", type: "select", options: [{ value: "", label: "(none)" }, ...teams.map((t) => ({ value: t.team_id, label: t.name || "" }))], span: 1 },
       { key: "is_league", label: "League game", type: "checkbox", checkLabel: "Counts toward league standings", span: 1 },
       {
         key: "location_id", label: "Location", type: "select", span: 1,
         options: [{ value: "", label: "(select a location)" }, ...locations.map((l) => ({ value: l.location_id, label: l.name || "" }))],
-        visibleIf: (f) => f.home_away === "Away",
+        // Home is always our own gym; Away and Neutral (tournaments etc.)
+        // both need a venue picked.
+        visibleIf: (f) => f.home_away === "Away" || f.home_away === "Neutral",
         help: "Manage the list under Season → Locations.",
       },
       { key: "our_score", label: "Our score", type: "number", span: 1, help: "Leave both scores blank until the game is played." },
@@ -1390,7 +1392,7 @@ async function renderScheduleSection(container) {
         // Location/address are denormalized onto the game record itself
         // (same as before) so the public schedule page needs no extra
         // lookup - location_id is just how the admin form picks them.
-        if (values.home_away === "Away" && values.location_id) {
+        if ((values.home_away === "Away" || values.home_away === "Neutral") && values.location_id) {
           const loc = locations.find((l) => l.location_id === values.location_id);
           if (loc) {
             values.location = loc.name || "";
@@ -1474,7 +1476,7 @@ async function renderScheduleSection(container) {
       { label: "Date", key: "date", text: (g) => g.date || "" },
       { label: "Time", key: "time", text: (g) => g.time || "" },
       { label: "Team", key: "team_id", text: (g) => teamsById[g.team_id]?.name || "", flag: true },
-      { label: "Opponent", key: "opponent", text: (g) => `${g.home_away === "Home" ? "vs" : "at"} ${g.opponent || ""}`, strong: true },
+      { label: "Opponent", key: "opponent", text: (g) => `${matchupPrefix(g)} ${g.opponent || ""}`, strong: true },
       { label: "Location", key: "location", text: gameLocationText },
       { label: "Result", key: "our_score", text: resultText },
       { label: "League", key: "is_league", text: (g) => (g.is_league ? "Yes" : "") },
@@ -1621,7 +1623,7 @@ async function renderScheduleSection(container) {
       cell.addEventListener("click", () => openGameModal(null));
       (gamesByDate[iso] || []).forEach((g) => {
         const teamName2 = teamsById[g.team_id]?.name;
-        const label = [g.time || "TBA", g.home_away === "Home" ? "vs" : "at", g.opponent, teamName2 && `(${teamName2})`].filter(Boolean).join(" ");
+        const label = [g.time || "TBA", matchupPrefix(g), g.opponent, teamName2 && `(${teamName2})`].filter(Boolean).join(" ");
         cell.appendChild(
           el("button", { type: "button", class: "admin-cal-event", text: label }).also((btn) =>
             btn.addEventListener("click", (e) => {
@@ -1633,6 +1635,8 @@ async function renderScheduleSection(container) {
       });
       grid.appendChild(cell);
     }
+    const trailing = (7 - ((firstOfMonth.getDay() + daysInMonth) % 7)) % 7;
+    for (let i = 0; i < trailing; i++) grid.appendChild(el("div", { class: "admin-cal-cell is-outside" }));
 
     bodyBox.appendChild(el("div", { class: "admin-cal-header" }, [prevBtn, el("div", { class: "admin-cal-label", text: monthLabel }), nextBtn]));
     bodyBox.appendChild(grid);

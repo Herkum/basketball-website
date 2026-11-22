@@ -3,7 +3,7 @@
 A public static site (rosters, schedule, news, coaches, contacts, content
 blocks) backed by a serverless admin CMS for managing all of it. Admin login
 is Google Sign-In via Amazon Cognito, restricted to an email allowlist
-stored in DynamoDB. The public site needs no login — see "Public API" in
+stored in DynamoDB. The public site needs no login — see "Public reads" in
 architecture.md below.
 
 This file is split into topic files under `docs/` (imported below) to keep
@@ -14,6 +14,9 @@ project instructions, not optional background reading.
 @docs/aws-and-deploy.md
 @docs/gotchas.md
 @docs/content-schemas.md
+
+Live at https://nphsboysbasketball.com (and `www.`) — see "Custom domain"
+in aws-and-deploy.md.
 
 ## Local dev quick start
 
@@ -29,8 +32,6 @@ deployed API/Cognito/DynamoDB — there's no local backend. Requires
 
 ## Not yet done
 
-- No custom domain — still on the CloudFront default `*.cloudfront.net` URL.
-- Public-facing site content is still just a placeholder page.
 - Terraform state is local only.
 - Every `backend/functions/*/handler.py` duplicates its own `DecimalEncoder`/
   `_response` boilerplate, and now also its own `_caller_permissions()`
