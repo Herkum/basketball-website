@@ -7,6 +7,13 @@ function mapsUrl(address) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
+// Schedule games are Home, Away, or Neutral (a tournament or other
+// neutral-site game). Only Away reads "at Opponent"; Home and Neutral both
+// read "vs Opponent" - for a Neutral game the location says where.
+function matchupPrefix(g) {
+  return g.home_away === "Away" ? "at" : "vs";
+}
+
 function isoDate(date) {
   return date.toISOString().slice(0, 10);
 }

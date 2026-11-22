@@ -420,7 +420,7 @@ async function initHomePage() {
   const gymContact = contacts.find((c) => c.type === "Physical Address");
 
   function gameLine(g) {
-    return `${g.home_away === "Home" ? "vs" : "at"} ${g.opponent || ""}`;
+    return `${matchupPrefix(g)} ${g.opponent || ""}`;
   }
 
   // Same denormalized-location resolution as the Schedule page's
@@ -465,7 +465,7 @@ async function initHomePage() {
     }
     if (nextGame) {
       const href = gameMapsHref(nextGame);
-      const valueText = `${nextGame.home_away === "Home" ? "vs" : "at"} ${nextGame.opponent || ""}`;
+      const valueText = `${matchupPrefix(nextGame)} ${nextGame.opponent || ""}`;
       statRow.appendChild(
         el("div", { class: "stat-col" }, [
           el("span", { class: "eyebrow", text: "Next Game" }),
@@ -947,7 +947,7 @@ async function initSchedulePage() {
             el("td", { class: "nums", text: g.date || "" }),
             el("td", { class: "nums", text: g.time || "" }),
             el("td", { text: teamsById[g.team_id]?.name || "" }),
-            el("td", { text: g.home_away === "Home" ? "vs" : "at" }),
+            el("td", { text: matchupPrefix(g) }),
             el("td", { text: g.opponent || "" }),
             addressCell,
             scoreCell,
@@ -1026,7 +1026,7 @@ async function initSchedulePage() {
 
       for (const g of gamesByDate[iso] || []) {
         const teamName = teamsById[g.team_id]?.name;
-        const label = [g.time, g.home_away === "Home" ? "vs" : "at", g.opponent, teamName && `(${teamName})`]
+        const label = [g.time, matchupPrefix(g), g.opponent, teamName && `(${teamName})`]
           .filter(Boolean)
           .join(" ");
         cell.appendChild(el("div", { class: "calendar-event", text: label }));

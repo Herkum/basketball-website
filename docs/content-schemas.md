@@ -12,7 +12,10 @@
   way as coach/team photos). Listed via the Rosters tab's "Players" button
   for a given team, not its own top-level tab.
 - `Schedule` (PK `season`, SK `game_id`): `date`, `time` (free text, not
-  `type="time"` — schedules routinely say "TBA"), `opponent`, `home_away`,
+  `type="time"` — schedules routinely say "TBA"), `opponent`, `home_away`
+  (`Home`/`Away`/`Neutral` — Neutral is a tournament or other neutral-site
+  game; `matchupPrefix()` in `shared.js` renders Away as "at Opponent" and
+  Home/Neutral as "vs Opponent" everywhere a game is listed),
   `location_id` (which `Locations` row the admin picked — see `Locations`
   below), `location`/`address` (a denormalized copy of that row's `name`/
   `address`, written by `renderScheduleSection`'s `openGameModal` at save
@@ -31,9 +34,9 @@
   lat/long; the public schedule links the resolved name as the display text
   with the resolved address as the href, falling back to plain text if
   there's no address. `location_id`/`location`/`address` only appear in the
-  admin's edit dialog for Away games (Home is always the same gym, so
+  admin's edit dialog for Away and Neutral games (Home is always the same gym, so
   re-entering it every time would be pointless data entry) — the field
-  carries `visibleIf: (f) => f.home_away === "Away"` in the field metadata
+  carries `visibleIf: (f) => f.home_away === "Away" || f.home_away === "Neutral"` in the field metadata
   (`renderScheduleSection`'s `fields()` in `app.js`), but the stored values
   are hidden, not cleared, so a Home game's already-backfilled `address` is
   preserved across edits. There is no free-text override on this dropdown —
