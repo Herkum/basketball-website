@@ -55,3 +55,9 @@
   file type that pages load as code in `local.content_types` so it gets
   the header too. The local dev server should likewise send `no-store`
   (plain `python3 -m http.server` doesn't).
+- **`.plate` photos paint over absolutely-positioned siblings**: `.plate`'s
+  `filter` gives every photo its own stacking layer, which paints above an
+  earlier `position: absolute` element with no `z-index` — on phones the
+  news popup's full-width photo hid its close ×. Every modal close button
+  (`.news-modal-close`, `.coach-modal-close`, `.photo-modal-close`) sets
+  `z-index: 2`; give any new control layered over a photo the same.

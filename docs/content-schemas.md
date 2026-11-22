@@ -35,7 +35,10 @@ lists live as constants in `admin/app.js`.
     team filter, sortable List view (no reorder — games sort by date) and
     a Calendar view (`paintCalendar`; click a day or chip to add/edit) that
     re-centers on the earliest game when a season is loaded.
-- **`News`** (PK `post_id`): `title`, `body`, `is_event` (an upcoming item
+- **`News`** (PK `post_id`): `title`, `body` (simple HTML allowed — a link,
+  bold; rendered as markup by `newsBodyNode()` with typed line breaks kept,
+  tag-stripped by `newsPlainText()` on carousel cards; the admin's Story
+  field has the Write/Preview toggle), `is_event` (an upcoming item
   like a clinic, vs. a report on something now), `published_date`,
   `end_date`, `image` (cropped). Date rules, checked on Save by
   `newsMeta().validate`: plain News can't be future-dated, an Event must
@@ -52,8 +55,8 @@ lists live as constants in `admin/app.js`.
   Leagues, Logo, Mission Statement, Store, Sponsorships, Donate, Games
   Online — which page the block drives; see "Content Blocks → pages" in
   architecture.md), `league_name` (form shows it only for the Logo
-  generator), `order`. Body is the one `html: true` field (Write/Preview
-  toggle).
+  generator), `order`. Body is an `html: true` field (Write/Preview
+  toggle), like News's Story.
 - **`Coaches`** (PK `coach_id`): `name`, `title`, `email` (a `mailto:` link
   publicly), `profile`, `image` (cropped), `order`.
 - **`Contacts`** (PK `contact_id`): `kind` (`CONTACT_KINDS`: Program/
