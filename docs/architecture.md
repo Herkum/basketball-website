@@ -8,406 +8,192 @@ Admin SPA         --> API Gateway (JWT authorizer, POST/PUT/DELETE) --> Lambda -
 Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly to S3
 ```
 
-- **Frontend**: plain HTML/JS/CSS, no build step, no framework, no bundler.
-  Public site pages live at `frontend/` root (`index.html`, `rosters.html`,
-  `roster.html`, `schedule.html`, `news.html`, `coaches.html`,
-  `contact.html`, `sponsors.html`, `photos.html`, `standings.html`, `games-online.html`,
-  `mission.html`, `regional-leagues.html`) sharing `site.js`/
-  `site.css`; `frontend/admin/` is the separate admin SPA with its own
-  `app.js`/`style.css`.
-- **Public site layout**: `#site-header` sits *above* `.layout` as a full-
-  width bar (spans over the sidebar too, not just the central column) —
-  its own inner wrapper (`.site-header-inner`) is what's width-capped and
-  centered (`max-width: 1400px`) to line up with `.layout`'s matching cap,
-  so the header's content aligns with the sidebar/central-column boundary
-  below it without the bar itself looking clipped on wide viewports.
-  Below that, `.layout` is the sidebar + central-column row (`#site-sidebar`
-  + `.central-column` > `<main>`, see any page's HTML). `initLayout()` in
-  `site.js` builds both the header (the brand block — see below) and the
-  sidebar nav, and is called by every `initXPage()` before it renders its
-  own content. The nav is a fixed structure (`NAV_STRUCTURE` in `site.js`),
-  not purely `order`-driven like the admin's nav groups — Home, Store, and
-  Donate are top-level links, then three hardcoded group headers (Media,
-  Basketball, Booster) each list a fixed set of generators as indented
-  sub-links (`.sub-link`), Rosters' per-team links nesting one level
-  deeper still (`.sub-link--team`). A group item can also be a
-  plain `{label, href}` object instead of a generator name — an external
-  link with no page/Content Block of its own, opened in a new tab (none
-  currently use this). A top-level generator entry can carry an `href`
-  too, which overrides its page link with an external one (new tab) while
-  keeping the block's `title` as the label — Store uses this to point
-  straight at the promo-ops.com team store instead of `store.html`. Each link's own label still comes from
-  its Content Block's `title` (falling back to the generator's own name if
-  that block doesn't exist yet, e.g. before Store/Sponsorships/Donate are
-  created in the admin) so the admin can rename any page freely — only the
-  grouping/ordering itself is hardcoded now. This was a deliberate,
-  explicit change (not something to casually redo elsewhere) — the
-  `special`/NoIndex flag no longer controls sidebar inclusion at all
-  (every generator in `NAV_STRUCTURE` always gets a link); it's still
-  surfaced in the admin as a search-engine NoIndex hint, just no longer
-  tied to nav visibility.
-- **Phone widths (≤720px)**: the sidebar (record box + nav) is hidden
-  behind a "Menu" button that `initNavToggle()` (`site.js`, called from
-  `initLayout()`) appends to `.site-header-inner` — toggling
-  `body.nav-open` shows it as a full-width panel under the header.
-  Stacked above the page instead (the old behavior), it pushed every
-  page's content more than a full phone screen down. Wide tables
-  (Schedule, a roster's Players, Standings, Regional Leagues) sit in a
-  `.table-scroll` wrapper so they scroll inside their own box rather than
-  widening the page; justified paragraphs fall back to left-aligned. Any
-  new page-level `<table>` should get the same wrapper. Regional Leagues
-  goes further so its tables fit outright (scoped by a `.regional-leagues`
-  class on its Ranking/Leagues panels, so the Standings page is
-  unaffected): no `#` column or school badges, no League column on
-  Ranking, no Pct columns (`.col-pct`) on the per-league tables, and
-  slightly smaller school names/tighter cells so names stay on one line
-  (fits every league down to a 375px phone; narrower ones scroll that
-  table a little). Hidden columns would
-  otherwise leave `buildStandingsTable`'s "Overall"/"League" group labels
-  spanning the wrong columns, so `syncGroupSpans()` recounts each label's
-  visible columns (`data-group`) on build and whenever `PHONE_QUERY`
-  flips.
-- **Public site visual style**: follows the real "Classical" design
-  system (`designer/classical-dcb8c44c-cb34-4501-a2e9-cf858d85b40d/`,
-  see its `readme.md` for the full spec) rather than an earlier guess —
-  `site.css`'s `:root` tokens (`--color-*`/`--font-*`/`--space-*`/
-  `--radius-*`/`--shadow-*`) are copied from that bundle's `styles.css`.
-  Cormorant Garamond for headings, Lora for body, a warm near-white
-  ground (`--color-bg` #f3f2f2), near-black text, and a single bronze
-  accent (`--color-accent` #b68235, used as stroke/underline/text only —
-  never a filled block, per the system's explicit "don't"). `--muted`/
-  `--border`/`--bg`/`--text` are kept as compatibility aliases that
-  forward to the real tokens, so existing rules didn't need a full
-  rename. Body paragraphs justify (`text-align: justify`) per the
-  system's editorial direction. The sidebar/header lost their solid navy
-  fill for `--color-surface`/page-background + hairline borders — the
-  system has no vertical-nav component, but "no filled blocks" still
-  applies to whatever skins the existing sidebar/central-column
-  structure (that structure itself predates this system and stays).
-  Deliberate exceptions, added on request because the sidebar/titles
-  blended into the grey background: the sidebar record box
-  (`.record-card`) and nav group headers (`.nav-group-label`) are solid
-  black bands with yellow text, matching the header bar; every page's
-  `#page-title` is a white plate with a black left bar and yellow
-  underline; `.section-heading h2` gets just the black left bar; the
-  Home page `.stat-row` (Last Result/Next Game/Upcoming) is a white card
-  like `.home-card` (a dark version was tried and judged too heavy), with
-  larger values and a green/red W/L badge (`.stat-result-badge`) on the
-  last result.
-  `.plate` is adopted verbatim from the bundle: a sepia/desaturated
-  filter (`sepia(0.22) saturate(0.82) contrast(1.05)`) plus a matted
-  border, wrapped around every real photo (team/coach/news/gallery
-  images) except the small 40×40 inline player-row thumbnails, where the
-  mat would overwhelm the image — this is the system's signature photo
-  treatment, not a bug, and noticeably warms/desaturates every uploaded
-  photo. Reusable classes: `.eyebrow` (retuned to the system's
-  `.card-kicker` spec — 10px, tracked, accent-colored), `.section-divider`
-  (now a true 1px hairline, not a heavy black rule, matching the
-  system's `.hr` — wraps teams on Rosters, months on Schedule, tiers on
-  Sponsors, albums on Photos, built via the `sectionDivider(title,
-  children)` helper in `site.js`), `.nums` (tabular-nums), `.result-win`/
-  `.result-loss` (score color coding). Buttons (Schedule's filter row)
-  are accent-outlined with a tinted hover/active state, never solid-fill,
-  per the system's `.btn`/`.btn-primary` direction. The Coaches page
-  cross-references `/rosters`' `coach_ids` client-side to show an eyebrow
-  of which team(s) a coach is on — inverse of a relationship Rosters
-  already owns, not a new field.
-- **Header brand block + sidebar record/footer** (`initLayout()`, every
-  page): a "Logo" Content Block (`generator: "Logo"`, `special: true`/
-  NoIndex — created once via a one-off script, since deleted)
-  drives the brand block rendered inside the full-width header bar (see
-  "Public site layout" above) — its `image` is the logo (falls back to a
-  monogram of the first letter of each word in `title`, e.g. "Newbury
-  Park" → "NP", when no image is set), `title` is the short site name,
-  `body` is the tagline, and a `league_name` field (admin-only input on
-  the Content Blocks form, shown only when Generator is "Logo") feeds the
-  sidebar footer and the Home page standings heading. There is no more
-  separate "Header" Content Block — it used to hold the site-name text
-  shown in a plain header bar, but once the brand block moved into the
-  header that text was redundant with the Logo block's own `title`, so
-  the Header block was deleted; if `logoBlock` is ever missing entirely
-  (e.g. mid-setup on a fresh site), the header falls back to a plain
-  "Basketball" `.site-title` label rather than looking up any block by
-  name. At the top of the sidebar (now the first thing there, since the
-  brand block moved out of it) sits a W-L record box (Overall vs. League)
-  read directly off our own row in `/standings` (matched by `school`
-  against the Logo block's `title`, same matching used for the Home
-  page's standings highlight) — Standings is the authoritative source for
-  records site-wide, not a client-side computation from Schedule.
-  (Schedule's `is_league` checkbox — "not every opponent is a league
-  game, tournaments and non-league games aren't" — still exists on the
-  admin form but nothing on the public site currently reads it; it was
-  the sidebar record's original data source before this changed to read
-  from Standings instead.) The sidebar footer pulls the first `Physical
-  Address` Contact's `value` plus the Logo block's `league_name`.
-- **Home page**: `initHomePage` in `site.js` sets the page title from the
-  Home Content Block's own `title` (not a hardcoded "Welcome") and shows
-  a `${defaultSeason()} Season` eyebrow under it. Builds a `.stat-row`
-  (Last Result / Next Game / Then) computed client-side from
-  `/schedule/<season>` — Last Result is the most recent game with both
-  scores set, no new endpoint; Next Game's second meta line shows
-  "Home · <gym contact label>" or "At <opponent's Location>" for away
-  games. Directly below `.stat-row` comes the News/Events feed (events
-  nearest-date-first, then news newest-first, concatenated into one list),
-  rendering its first item as a lead article (`.news-lead` — text beside a
-  `.plate` photo, an excerpt, a "Read the recap →" link) and up to 3 more
-  as a `.news-grid` of smaller cards underneath — this mirrors the design
-  mockup's actual News section structure (which lives on its Home page,
-  not a separate page in the mockup) rather than the flatter single-
-  paragraph callout an earlier pass on this page used. The Home block's
-  body text comes after that, still deliberately placed below the fold
-  rather than at the top of the page (a specific request, not mockup
-  fidelity — the mockup puts its intro paragraph directly under the H1
-  instead) — it was originally positioned right under `.stat-row` before
-  the News feed moved in ahead of it, so it's now stat row → News → body
-  text → standings. Mission Statement is **not** shown on Home at all
-  anymore — it has its own dedicated page (see Content Blocks → page
-  mapping). Below the body text, a two-column `.home-split` row (stacks
-  on narrow screens) holds two `.home-card`s: on the left an
-  **abbreviated** standings table (`.standings-mini` — School + Overall
-  W/L only, sorted best overall record first with
-  `compareStandingsRows()` as the tiebreaker, shield badges via
-  `schoolBadgeStyle()`/`schoolInitials()`, our row highlighted by Logo
-  block `title` match, "Full standings →" to `standings.html`), headed by
-  the Logo block's `league_name`; on the right a "Sponsor Spotlight" — one
-  sponsor picked at random on each page load (name, tier, `kind`,
-  website link, "All sponsors →"). This replaced the old full sponsor
-  name strip, which is no longer on Home (`sponsors.html` lists them all).
-- **Standings page + admin League Standings table**: `initStandingsPage`
-  (`site.js`) and the admin's `renderStandingsSection` (`admin/app.js`)
-  render the same table layout from the same helpers in `shared.js`
-  (`parseRecord`/`compareStandingsRows`/`standingsPlaces`/`formatPct`/
-  `formatDiff`/`diffClass`/`parseStreak`), so the two can't drift: rows
-  ranked with shared places for identical records ("T2"), our row
-  highlighted (Logo block `title` match), win pct **recomputed from the
-  W-L string** rather than shown from the scraped `*_pct` fields (MaxPreps
-  has reported a stale .000 for a 1-0 team — so a hand-edited pct in the
-  admin modal won't appear anywhere), point differentials and streak
-  badges in a brighter green/red (`--standings-win`/`--standings-loss`)
-  than the site's muted `--win`, and a dark header band. The public table
-  drops League PF/PA (shown as a tooltip on League Diff); the admin's
-  shows the same columns plus Actions.
-  Each school name has a shield monogram (`schoolInitials()`, same
-  shape as the header's Logo fallback) colored from the hardcoded
-  `SCHOOL_COLORS` map in `shared.js`, keyed by the scraped `school`
-  name — not admin-editable. `schoolBadgeStyle(name, team)` prefers that
-  hand-sampled map (currently the Marmonte schools); otherwise, when given
-  a Rankings team row, it uses that school's scraped MaxPreps
-  `color1`/`color2` via `badgeColorsFromTeam()` (same fill/initials/
-  outline conventions as the map, plus initials forced to black or white
-  when MaxPreps' pair is below 3:1 contrast — common, e.g. navy/gray).
-  That's how every Regional Leagues shield gets school colors. A school
-  in neither falls back to a plain outlined badge, and our own row uses
-  the header yellow via CSS regardless.
-- **Regional Leagues page** (`regional-leagues.html`/
-  `initRegionalLeaguesPage` in `site.js`, under the sidebar's Media
-  group, generator "Regional Leagues"): renders `GET /rankings` (see
-  `Rankings` in content-schemas.md) as three tabs, toggled by `filter-row`
-  buttons and remembered in the URL hash (`#leagues`). **Ranking** (`#ranking`) is every tracked team in one table (`.regional-table`,
-  skinned like `.standings-table--full`), sortable by clicking any header
-  — ratings sort high-to-low on first click, ranks/names low-to-high,
-  teams with no games always last, SRS rank as the tiebreaker.
-  **Leagues** is one `sectionDivider` per league
-  (alphabetical by league name), each table
-  built by `buildStandingsTable(rows, usName)` — the same function the
-  Standings page itself uses (extracted from `initStandingsPage` for
-  this), so per-league tables sort, place ties, badge, and highlight our
-  row exactly like our own league's Standings. School names link to the
-  team's MaxPreps page rather than an admin-set `link`.
-  **School Map** (`#map`, `buildSchoolMap` in `site.js`) pins every
-  tracked school on an OpenStreetMap base map via Leaflet 1.9.4, loaded
-  from cdnjs with SRI hashes by `regional-leagues.html` only (the one
-  third-party script on the public site — no API key, unlike Google Maps,
-  which needs a billed Cloud key). Built lazily on the tab's first show,
-  since Leaflet measures its container on init and a hidden panel is 0×0;
-  the map must also have a view (`fitBounds`) *before* any marker is added
-  or styled, or Leaflet throws on `bringToFront`. Pins are deliberately one
-  neutral ink color plus a league picker (a `<select>` in the page's tab
-  row, beside the School Map button and shown only on that tab — it drives
-  `buildSchoolMap()`'s returned `applyFilter`) that highlights the chosen
-  league in the bronze accent and dims the rest — not ten league hues
-  (too many to tell apart on a map, and the Classical system is
-  single-accent); our school is always the header yellow with a dark
-  ring. Each pin's popup has record/SRS, the address, a `mapsUrl()`
-  Directions link, and the MaxPreps link.
-- **Schedule page List/Calendar toggle**: `initSchedulePage` in `site.js`
-  can render the same filtered games as either the month-grouped table
-  (`renderTable`) or a month calendar grid (`buildCalendar`, read-only
-  chips — no click-to-edit like the admin's calendar), switched by a
-  `filter-row`-styled toggle; both share the same team filter state
-  (`currentTeamId`) and re-render through one `renderView()` dispatcher.
-  `buildCalendar` mirrors the admin's own calendar
-  (`renderScheduleSection` in `admin/app.js`) — same month-grid
-  construction, centered on the earliest game in the filtered set —
-  restyled to the public site's tokens (`.calendar-*` classes in
-  `site.css`) instead of the admin's.
-- **Public API**: every GET route is `authorization_type = "NONE"` (see
-  `infra/api.tf` — `item_routes`/`list_routes` locals set `public = m ==
-  "GET"` and the two `aws_apigatewayv2_route` resources branch on it);
-  every POST/PUT/DELETE route stays JWT-protected. This was a deliberate,
-  explicitly-approved change (not something to casually redo elsewhere) —
-  it makes all *read* access to Rosters/Players/Schedule/News/Coaches/
-  Contacts/ContentBlocks public, which is correct since that's exactly the
-  content the public site displays. `/uploads` (POST-only, admin image
-  upload) was untouched.
-- **Content Blocks → page mapping**: each Content Block has a `generator`
-  field (dropdown in the admin — see `CONTENT_BLOCK_GENERATORS` in
-  `admin/app.js` for the full list) that drives a dedicated public page.
-  `findBlockByGenerator(blocks, generator)` in `site.js` looks one up by
-  that field (not by title, so the admin can rename a block freely) and
-  renders its `body` as the page's intro and its `title` as the page's
-  `<h1>` and sidebar label. `GENERATOR_PAGES`/`pageForGenerator()` map a
-  generator value to its HTML file (`Rosters`→`rosters.html`,
-  `Schedule`→`schedule.html`, etc.; no/unrecognized generator falls back
-  to `index.html`). Blocks with no generator (`Home`) are plain text
-  sections rendered only on the home page, still looked up there by title
-  via `findBlock(blocks, title)` since there's no dedicated page for them
-  to be a generator of. Store/Sponsorships/Donate/Games Online are the one exception to
-  "renders `body` as the page's intro" — `initHtmlBlockPage()` renders
-  their `body` as raw HTML (`innerHTML`, not text) instead, since those
-  four are meant to hold an admin-pasted embed (a store widget, a
-  donate button/iframe, a sponsorship pitch, links out to the school's
-  Hudl broadcast pages) rather than plain copy.
-- **Rosters get their own sidebar entries + pages**: `initLayout()` also
-  fetches `/rosters` and, right after the "Rosters" sidebar link, injects
-  one indented sub-link per team (`.sub-link` in `site.css`) pointing at
-  `roster.html?team=<team_id>`. `rosters.html`/`initRostersPage` is just a
-  lightweight card-grid index; `roster.html`/`initRosterDetailPage` renders
-  one team's photo/coaches/full player table, reading `team` from the query
-  string. Both the "Rosters" parent link and the matching team sub-link are
-  marked active when on `roster.html`.
-- **News "active" filtering is client-side only**: `site.js`'s
-  `initNewsPage`/`initHomePage` filter to `published_date <= today <=
-  end_date` after fetching `/news` in full. The Lambda deliberately returns
-  everything unfiltered — the admin UI needs to see and edit past/future
-  posts too, so filtering can't happen server-side without breaking that.
-- **News/Event photo carousel**: a full News/Event article (`news.html`'s
-  own posts, and the Home page's "Full Article" modal via `openNewsModal`)
-  shows a photo carousel at the end when an Album is linked to that post
-  (Albums' `linked.ref === "news:<post_id>"`, see Albums in
-  content-schemas.md — previously admin-only metadata nothing on the
-  public site read). `fetchNewsPhotoIndex()` builds a post_id -> photos[]
-  lookup by fetching `/albums` once and only fetching `/photos/<album_id>`
-  for albums actually linked to a post, not every album.
-  `buildPhotoCarousel(photos)` is a horizontally-scrolling strip of small
-  (96×96) thumbnails (`.photo-carousel`, `overflow-x: auto`) — not one
-  image stretched to the article's width — clicking any thumbnail calls
-  `openPhotoModal(photo)`, a dedicated full-size popup (mirrors
-  `openCoachModal`/`openNewsModal`'s modal chrome) whose own `<h2>` title
-  is the photo's `caption`, per explicit request, rather than a generic
-  "Photo" label. Each thumbnail still carries `.plate` (same sepia
-  treatment as every other on-page photo) but its click handler calls
-  `stopPropagation()`, since without it the document-level lightbox
-  listener (`initImageLightbox`) would also catch the same click and open
-  its own plain, caption-less popup on top of/behind this one.
-- **Auth**: Cognito User Pool federates with Google as an IdP. The SPA does
-  Authorization Code + PKCE against Cognito's Hosted UI (no client secret in
-  the browser). A Cognito post-authentication Lambda trigger
-  (`backend/functions/post_auth_allowlist`) checks the authenticated email
-  against the `AdminAllowlist` DynamoDB table and rejects sign-in if absent.
-  Session length is the Cognito app client's `id_token_validity` (2 hours,
-  `infra/cognito.tf`) — `auth.js` only ever stores the `id_token` and never
-  requests/uses a refresh token, so this is the real "how long is an admin
-  logged in for" knob, not `refresh_token_validity`. Because the admin
-  dashboard is a single page that's never reloaded during normal use,
-  `isLoggedIn()`'s `Date.now() < expires_at` check alone would only catch an
-  expired session the next time something happened to re-check it (e.g. a
-  failed submit hitting `apiFetch`'s 401 handling). `scheduleSessionTimeout()`
-  (called once from `index.html` right after the initial `isLoggedIn()` check)
-  sets an actual `setTimeout` for the remaining validity so the session ends
-  itself — back to the login screen — the moment the token expires, with no
-  user action required to trigger it.
-- **API**: API Gateway HTTP API, one Lambda per resource
-  (`rosters`, `players`, `schedule`, `news`, `content_blocks`, `coaches`,
-  `contacts`, `sponsors`, `albums`, `photos`), all
-  doing simple CRUD against their own DynamoDB table. Routes are declared
-  per real HTTP method (GET/POST/PUT/DELETE), not `ANY` — see "Known
-  gotchas" below for why. Adding a new keyed-list resource is table-driven:
-  one entry each in `local.functions` (`infra/lambda.tf`), a table in
-  `infra/dynamodb.tf`, and `local.api_routes` (`infra/api.tf`) — the
-  routing/CORS/JWT-vs-public wiring itself needs no changes. `standings`,
-  `rankings`, and `uploads` are the exceptions to this pattern — all are
-  singleton actions (not a keyed list of entities), so they get bespoke
-  integration/route blocks in `api.tf` instead (`GET`/`POST /standings`,
-  `GET`/`POST /rankings`, `POST /uploads`) while still reusing the generic
-  `local.functions`/`aws_lambda_function.function` mechanism for their
-  actual Lambda deployment.
-- **Rosters/Players**: `rosters` is team-level (name, photo, drag-order,
-  many-to-many `coach_ids`); `players` is a separate table keyed by
-  `team_id`/`player_id` for the roster of individual players under a team.
-  The admin UI's Rosters tab shows the team list, and a "Players" button per
-  team drills into a `playersMeta()` view scoped to that `team_id`, with a
-  "← Rosters" breadcrumb back — same pattern used for Photos → Albums (see
-  "Admin UI" below).
-- **Image uploads** (coach, team, player, and Content Block photos): the
-  browser crops an image client-side, then uploads the result directly to
-  S3 via a presigned URL from the `uploads` Lambda (`backend/functions/uploads`,
-  writes to `images/uploads/<uuid>.<ext>` — not entity-specific despite the
-  older `images/coaches/...` objects still sitting in the bucket from before
-  this was generalized). `openImageCropDialog()` (`frontend/admin/app.js`)
-  is a separate modal dialog — drag to reposition, wheel/slider to zoom,
-  against a fixed square crop window — reused by every cropped `file`-type
-  field in the admin's generic form engine (see "Admin UI" below). Photos
-  (the per-album picture, not to be confused with Content Block photos)
-  skip cropping entirely (`raw: true` on that field) since they're candid
-  event shots at their natural aspect ratio, not avatar crops. Images live
-  under `images/` in the same S3 bucket as the static site, so they're
-  served publicly via CloudFront.
-- **Admin UI**: a from-scratch rewrite (matching
-  `designer/Basketball Website Admin.dc.html`'s mockup structure, restyled
-  onto the same Classical tokens as the public site — see
-  `frontend/admin/style.css`) replaced the old one-hand-rolled-function-
-  per-section admin with a generic, metadata-driven engine in
-  `frontend/admin/app.js`:
-  - `renderGenericSection(container, meta, ctx)` is the shared list/table
-    engine — search, click-to-sort columns, drag-to-reorder (disabled
-    while a sort is active, and omitted entirely for sections whose real
-    schema has no `order` field: News, Players, Schedule), an empty state,
-    and Edit/Delete per row — driven entirely by a `meta` object per
-    section (`contentBlocksMeta()`, `newsMeta()`, `coachesMeta()`,
-    `contactsMeta()`, `sponsorsMeta()`, `rostersMeta()`, `albumsMeta()`,
-    and the drill-down `playersMeta(team, back)`/`photosMeta(album, back)`)
-    rather than one bespoke render function per resource.
-  - `openModal({fields, initialValues, onSave, validate, ...})` is the
-    shared Create/Edit dialog — every section's `fields` array describes
-    its form (`text`/`textarea`/`select`/`checkbox`/`multi`/`file`/
-    `number`/`date`/`email`), including cross-field behavior via
-    `visibleIf(form)` (Schedule's Location/Address only for Away games,
-    Content Blocks' League Name only for the Logo generator) and a
-    per-section `validate(values)` hook for constraints spanning multiple
-    fields (News's opposite Published-date rules by Event type).
-    Required-field checking is generic; `validate` only needs to handle
-    what's specific to that section.
-  - `openConfirm()` (a Delete confirmation dialog) and `showToast()`
-    (a bottom-of-screen save/delete confirmation, auto-dismissing) are
-    shared across every section, replacing the old per-section inline
-    error/success text.
-  - The nav is grouped into Content / Teams / Season / Administration
-    (`NAV_GROUPS`, `SECTION_LABELS` in `app.js`), matching the mockup for
-    the first three — a structural change from the old flat row of tabs.
-    Administration (currently just Users) is the one group gated by
-    permission rather than always shown: `initDashboard()` fetches the
-    signed-in user's own Users row (`getCurrentEmail()` in `auth.js`
-    decodes the id_token's `email` claim, then `GET /users/<email>`) and
-    `hasSectionAccess()`/`SECTION_PERMISSION` hide any nav tab (not just
-    Administration's) whose required permission the user lacks — `Admin`
-    unlocks everything. This is UI convenience on top of the real
-    enforcement, which is server-side (see `AdminAllowlist` in
-    content-schemas.md) — hiding a tab isn't what stops a write, the
-    Lambda's own permission check is.
-  - **Schedule and Standings stay bespoke**, not on `renderGenericSection`,
-    but both reuse the same shared `openModal()`/`openConfirm()`/
-    `showToast()` primitives everything else uses, so editing still feels
-    consistent. Schedule (`renderScheduleSection`) needs a List/Calendar
-    toggle plus a team-filter that both views share, and a Season load
-    control above everything else. Standings (`renderStandingsSection`) is
-    a singleton cache row, not a keyed list — there's no per-school
-    `/standings/<id>` endpoint, only `GET`/`POST /standings` (scrape
-    refresh) and `PUT /standings` (replace `rows` wholesale) — so its Add/
-    Edit/Delete modals all compute the *full* new `rows` array client-side
-    (add one, splice one in-place by object identity, or filter one out)
-    and `PUT` that whole array, rather than posting to a per-item path
-    like every other section's generic `itemPath()`.
-- **Infra**: Terraform, all under `infra/`. State is local
-  (`infra/terraform.tfstate`) — fine for solo dev, move to an S3 backend
-  before collaborating with anyone else.
+## Frontend
+
+Plain HTML/JS/CSS — no build step, framework, or bundler. Public pages sit
+at `frontend/` root (`index`, `rosters`, `roster`, `schedule`, `news`,
+`coaches`, `contact`, `sponsors`, `photos`, `standings`, `regional-leagues`,
+`mission`, `games-online`, `store`, `donate`, `sponsorships` `.html`) and
+share `site.js`/`site.css`. `frontend/admin/` is the separate admin SPA
+(`app.js`/`style.css`). `shared.js` holds helpers both use (`mapsUrl`,
+`defaultSeason`, `matchupPrefix`, the standings helpers, `SCHOOL_COLORS`).
+
+## Public site
+
+- **Layout**: a full-width `.site-header` bar (static HTML in every page —
+  edit the HTML to change the brand; no Content Block drives it), then
+  `.layout` = `#site-sidebar` + `.central-column > main`, then
+  `#site-footer`. Header, layout, and footer are all capped at 1120px (the
+  220px sidebar + 900px column) so they line up. Every `initXPage()`
+  first calls `initLayout()`, which fetches blocks/rosters/contacts/
+  standings in parallel, builds the sidebar, and returns that data for the
+  page to reuse.
+- **Sidebar**: a Varsity record card (`.record-card`, Overall vs. League)
+  read off our own row in `/standings` — matched by `school` against the
+  Logo Content Block's `title`, the same "which row is us" match used site-
+  wide; Standings, not Schedule, is the source of records. Below it the
+  nav, a fixed structure (`NAV_STRUCTURE` in `site.js`) by explicit
+  request: Home, Store, Donate top-level, then Media / Basketball / Booster
+  groups of generator sub-links, Rosters followed by one link per team
+  (`roster.html?team=<id>`). Labels come from each generator's Content
+  Block `title` (falling back to the generator name), so pages can be
+  renamed freely; only grouping/order is hardcoded. A top-level entry with
+  `href` links out in a new tab instead of to its page (Store → the
+  promo-ops team store); a group item can also be a plain `{label, href}`.
+  The `special`/NoIndex flag does **not** affect the nav. The footer shows
+  the first `Physical Address` Contact and the Logo block's `league_name`.
+- **Phone widths (≤720px)**: the sidebar hides behind a Menu button
+  (`initNavToggle()`, toggles `body.nav-open`). Page-level tables sit in a
+  `.table-scroll` wrapper so they scroll in their own box — give any new
+  page-level `<table>` the same wrapper. Justified paragraphs go left-
+  aligned. Regional Leagues trims further so its tables fit outright
+  (scoped by `.regional-leagues`, so Standings is unaffected): no `#`
+  column, badges, League column (Ranking), or Pct columns (`.col-pct`,
+  Leagues), plus smaller names/tighter cells. Because hidden cells break
+  fixed colspans, `syncGroupSpans()` resizes `buildStandingsTable`'s
+  "Overall"/"League" labels to their visible columns (`data-group`) on
+  build and whenever `PHONE_QUERY` flips.
+- **Visual style**: the "Classical" design system
+  (`designer/classical-dcb8c44c-.../readme.md`); `site.css`'s `:root` tokens
+  are copied from its `styles.css` (`--muted`/`--border`/`--bg`/`--text` are
+  aliases onto them). Cormorant Garamond headings, Lora body, warm near-
+  white ground, near-black text, one bronze accent (`--color-accent`) used
+  for stroke/underline/text only, never a filled block; body text
+  justifies. Deliberate exceptions, on request (the sidebar and titles
+  blended into the grey): the header bar, record card, and nav group
+  labels are black with yellow text; `#page-title` is a white plate with a
+  black left bar and yellow underline; `.section-heading h2` gets the
+  black bar; the Home `.stat-row` is a white card with a W/L badge.
+  `.plate` (sepia filter + matted border) wraps every real photo except
+  40×40 player-row thumbnails — the system's signature treatment, so the
+  warm/desaturated look is intended. Other shared classes: `.eyebrow`,
+  `.section-divider` (via `sectionDivider(title, children)`), `.nums`,
+  `.result-win`/`.result-loss`; `filter-row` buttons are accent-outlined.
+- **Content Blocks → pages**: a block's `generator` picks the page it
+  drives; `findBlockByGenerator()` looks blocks up by generator (never by
+  title) and the page renders `title` as its `<h1>`/nav label and `body` as
+  plain intro text. `GENERATOR_PAGES`/`pageForGenerator()` map generators to
+  files. Exceptions: **Mission Statement** (`initMissionPage`) and
+  **Store/Sponsorships/Donate/Games Online** (`initHtmlBlockPage`) render
+  `body` as raw HTML — they hold admin-authored markup or pasted embeds
+  (store widget, donate iframe, Hudl links). **Logo** drives no page; its
+  `title` is our school name for row matching and `league_name` labels the
+  footer/Home standings. **Home** has no generator and is found by title
+  (`findBlock`).
+- **Home** (`initHomePage`): title from the Home block, a season eyebrow,
+  Varsity/JV/Frosh buttons over a `.stat-row` (Last Result / Next Game /
+  Upcoming, computed client-side from `/schedule/<season>`; Next Game
+  links to the venue's directions). Then the News/Events feed (events
+  nearest-first, then news newest-first; a `.news-lead` article plus up to
+  three `.news-grid` cards), then the Home block's body (below the fold on
+  purpose — a specific request), then `.home-split`: a shortened
+  standings card (`.standings-mini`, overall W/L only, ranked by overall
+  win pct, then wins, then fewest losses — overall records include
+  non-league games, so game counts differ) and a random Sponsor
+  Spotlight. Mission Statement isn't on Home; it has its own page.
+- **Standings**: the public page and the admin's League Standings table
+  build the same layout from the `shared.js` helpers (`parseRecord`,
+  `compareStandingsRows`, `standingsPlaces`, `formatPct`, `formatDiff`,
+  `diffClass`, `parseStreak`) so they can't drift: tied places ("T2"), our
+  row highlighted, Pct **recomputed from W-L** (MaxPreps has reported a
+  stale .000 for a 1-0 team, so the scraped/hand-edited `*_pct` fields are
+  never shown), brighter green/red diffs and streak badges. The public
+  table is `buildStandingsTable()` (also used by Regional Leagues) and
+  shows League PF/PA only as a tooltip. School shields: `schoolInitials()`
+  colored by the hand-sampled `SCHOOL_COLORS` map, else — given a Rankings
+  team row — MaxPreps' `color1`/`color2` via `badgeColorsFromTeam()`
+  (initials forced black/white below 3:1 contrast), else a plain outline;
+  our row is always header yellow.
+- **Regional Leagues** (`initRegionalLeaguesPage`): `GET /rankings` as three
+  tabs remembered in the URL hash. **Ranking** (`#ranking`): every tracked
+  team, sortable by any header (ratings high-to-low first, names/ranks
+  low-to-high, unplayed teams last, SRS rank breaks ties). **Leagues**
+  (`#leagues`): one `buildStandingsTable` per league, A–Z, schools linking
+  to MaxPreps. **School Map** (`#map`, `buildSchoolMap`): Leaflet 1.9.4 on
+  OpenStreetMap, loaded from cdnjs with SRI by this page only (no API key,
+  unlike Google Maps). Built on first show — Leaflet measures its
+  container, and a hidden panel is 0×0 — and the map needs a view
+  (`fitBounds`) before any marker is styled or Leaflet throws on
+  `bringToFront`. Pins are one neutral ink color; a league `<select>` in
+  the tab row (shown only on this tab) drives the returned `applyFilter`,
+  highlighting that league in bronze and dimming the rest (not ten league
+  hues — unreadable, and the system is single-accent). Our school is
+  yellow. Popups: record/SRS, address, Directions, MaxPreps.
+- **Schedule** (`initSchedulePage`): the same team-filtered games as a
+  month-grouped table (`renderTable`) or a read-only month calendar
+  (`buildCalendar`, mirroring the admin's), switched by a List/Calendar
+  toggle through `renderView()`.
+- **Rosters**: `rosters.html` is a card index; `roster.html?team=<id>`
+  (`initRosterDetailPage`) shows one team's photo, coaches, and players.
+  The Coaches page derives each coach's team(s) from Rosters' `coach_ids`.
+- **News**: `/news` returns everything (the admin needs past/future posts);
+  visibility is filtered client-side by `isNewsActive()` — see `News` in
+  content-schemas.md. A full article (`news.html`, or Home's Full Article
+  modal) ends with a carousel of its linked album's photos:
+  `fetchNewsPhotoIndex()` fetches `/albums` once and only the linked
+  albums' `/photos`; `buildPhotoCarousel()` is a scrolling strip of 96×96
+  thumbnails opening `openPhotoModal()` (titled by the caption). Thumbnails
+  call `stopPropagation()` so the document-level `initImageLightbox` doesn't
+  open a second, caption-less popup.
+
+## Admin SPA
+
+A metadata-driven rewrite (structure from `designer/Basketball Website
+Admin.dc.html`, styled on the same Classical tokens) in `admin/app.js`:
+
+- `renderGenericSection(container, meta, ctx)` — the shared list engine
+  (search, click-to-sort, drag-to-reorder disabled while sorted, empty
+  state, Edit/Delete), configured per section by `contentBlocksMeta()`,
+  `newsMeta()`, `coachesMeta()`, `contactsMeta()`, `sponsorsMeta()`,
+  `rostersMeta()`, `albumsMeta()`, `locationsMeta()`, `usersMeta()`, and the
+  drill-downs `playersMeta(team, back)` (Rosters → Players) and
+  `photosMeta(album, back)` (Photos → album). Reorder is off for News,
+  Players, and Users (no `order` field).
+- `openModal({fields, initialValues, onSave, validate})` — the shared form
+  dialog. Field types: `text`/`textarea`/`select`/`checkbox`/`multi`/`file`/
+  `number`/`date`/`email`; `visibleIf(form)` for conditional fields;
+  `validate(values)` for cross-field rules (required fields are checked
+  generically). `openConfirm()` and `showToast()` replace every native
+  dialog (see gotchas).
+- **Image fields**: cropped client-side in `openImageCropDialog()` (drag/zoom
+  to a square), then uploaded straight to S3 via a presigned URL from the
+  `uploads` Lambda (`images/uploads/<uuid>.<ext>`, served by CloudFront).
+  `raw: true` skips cropping (album photos keep their natural shape).
+- **Nav**: Content / Teams / Season / Administration (`NAV_GROUPS`).
+  `initDashboard()` loads the signed-in user's Users row (`getCurrentEmail()`
+  decodes the id_token) and `hasSectionAccess()`/`SECTION_PERMISSION` hide
+  tabs they lack permission for. That's convenience only — the Lambdas
+  enforce permissions (see `AdminAllowlist` in content-schemas.md).
+- **Bespoke sections** (still using `openModal`/`openConfirm`/`showToast`):
+  Schedule (`renderScheduleSection` — Season loader, team filter, List/
+  Calendar toggle) and League Standings (`renderStandingsSection` — a
+  singleton cache with no per-row endpoint, so Add/Edit/Delete each build
+  the whole new `rows` array and `PUT /standings`; it also hosts the
+  Regional Rankings refresh panel).
+
+## Backend & API
+
+- **API Gateway HTTP API**, one Lambda per resource (`rosters`, `players`,
+  `schedule`, `news`, `content_blocks`, `coaches`, `contacts`, `sponsors`,
+  `albums`, `photos`, `locations`, `users`), each CRUD on its own table.
+  Adding a keyed-list resource takes one entry in `local.functions`
+  (`infra/lambda.tf`), a table (`infra/dynamodb.tf`), and `local.api_routes`
+  (`infra/api.tf`). `standings`, `rankings`, and `uploads` are singleton
+  actions with bespoke routes in `api.tf` (`GET`/`POST`/`PUT /standings`,
+  `GET`/`POST /rankings`, `POST /uploads`) but deploy through the same
+  `local.functions`. Routes are per real method, never `ANY` (see gotchas).
+- **Public reads**: GET routes are `authorization_type = "NONE"` (`api.tf`'s
+  route locals: `public = m == "GET" ? lookup(r, "public_get", true) :
+  false`) — `/users` opts out with `public_get = false`; every write is
+  JWT-protected. Deliberate and approved — it's
+  exactly the content the public site shows. Don't re-lock it casually.
+- **Auth**: Cognito federates Google; the admin does Authorization Code +
+  PKCE against the Hosted UI (no client secret in the browser). The
+  `post_auth_allowlist` trigger rejects emails not in `AdminAllowlist`.
+  Session length is the app client's `id_token_validity` (2 hours,
+  `infra/cognito.tf`) — `auth.js` stores only the id_token and never uses a
+  refresh token. Since the dashboard never reloads,
+  `scheduleSessionTimeout()` sets a timer to return to the login screen
+  the moment the token expires.
+- **Infra**: Terraform under `infra/`, local state (`infra/terraform.tfstate`)
+  — move to an S3 backend before anyone else works on it.

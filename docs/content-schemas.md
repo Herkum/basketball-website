@@ -1,336 +1,174 @@
 # Content schemas
 
-- `Rosters` (PK `team_id`): `name`, `description` (free-text textarea, a
-  short paragraph about the team, rendered on that team's `roster.html`
-  page), `image` (CloudFront URL, cropped the same way as coach photos),
-  `coach_ids` (list of coach IDs — many-to-many with Coaches, displayed by
-  cross-referencing on the client since DynamoDB has no joins), `order`
-  (drag-to-reorder, same pattern as Coaches)
-- `Players` (PK `team_id`, SK `player_id`): `first_name`, `last_name`,
-  `number`, `height`, `year` (one of `Freshman`/`Sophomore`/`Junior`/`Senior`
-  — see `PLAYER_YEARS` in `app.js`), `profile`, `image` (cropped the same
-  way as coach/team photos). Listed via the Rosters tab's "Players" button
-  for a given team, not its own top-level tab.
-- `Schedule` (PK `season`, SK `game_id`): `date`, `time` (free text, not
-  `type="time"` — schedules routinely say "TBA"), `opponent`, `home_away`
-  (`Home`/`Away`/`Neutral` — Neutral is a tournament or other neutral-site
-  game; `matchupPrefix()` in `shared.js` renders Away as "at Opponent" and
-  Home/Neutral as "vs Opponent" everywhere a game is listed),
-  `location_id` (which `Locations` row the admin picked — see `Locations`
-  below), `location`/`address` (a denormalized copy of that row's `name`/
-  `address`, written by `renderScheduleSection`'s `openGameModal` at save
-  time). The denormalized copy exists as a fallback, not the source of
-  truth: both the admin's List view (`gameLocationText()`/
-  `gameAddressText()` in `app.js`) and the public schedule
-  (`gameLocation()` in `site.js`) resolve `location_id` against a live
-  `/locations` fetch first and only fall back to the stored `location`/
-  `address` text when there's no match (a deleted Location, or a game that
-  predates `location_id`/is unmapped) — this is what makes renaming a
-  Location in the admin UI instantly update every game already linked to
-  it, everywhere it's displayed, with no re-save needed. `address` (via
-  either path) is used to build the Google Maps search link —
-  `mapsUrl()`/`https://www.google.com/maps/search/?api=1&query=...` — no
-  geocoding, so it only needs to be something Maps can resolve, not precise
-  lat/long; the public schedule links the resolved name as the display text
-  with the resolved address as the href, falling back to plain text if
-  there's no address. `location_id`/`location`/`address` only appear in the
-  admin's edit dialog for Away and Neutral games (Home is always the same gym, so
-  re-entering it every time would be pointless data entry) — the field
-  carries `visibleIf: (f) => f.home_away === "Away" || f.home_away === "Neutral"` in the field metadata
-  (`renderScheduleSection`'s `fields()` in `app.js`), but the stored values
-  are hidden, not cleared, so a Home game's already-backfilled `address` is
-  preserved across edits. There is no free-text override on this dropdown —
-  a game with no confirmed venue needs a `Locations` row added first (or
-  left blank). `team_id` (which roster this game belongs to, a `<select>`
-  populated from `/rosters`), `is_league` (boolean checkbox, "League Game"
-  — not every opponent counts against the league record shown in the
-  public sidebar's record box; tournaments and non-league games leave
-  this unchecked), `our_score`, `opponent_score`.
-  `renderScheduleSection` in `app.js` is bespoke, not on the generic list
-  engine (see "Admin UI" in architecture.md) — it needs a Season load
-  control, a team-filter, and a List/Calendar toggle that both views
-  share. Defaults to `defaultSeason()` on load instead of a blank
-  type-a-season-and-click-Load screen. The List view is a sortable table
-  (client-side sort, no drag-reorder — games have no `order` field, they
-  sort by date); the Calendar view (`paintCalendar` in `app.js`) shows a
-  month grid — each game is a clickable chip on its date, and clicking a
-  day or a chip opens the same shared Create/Edit dialog used everywhere
-  else. `calYear`/`calMonth` re-center on the filtered set's earliest game
-  whenever a new season is loaded via the Season/Load control.
-- `News` (PK `post_id`): `title`, `body` (textarea), `is_event` (boolean
-  checkbox, "Event" — an upcoming item like a clinic or meeting, meant to
-  be visible as soon as it's announced, vs. ordinary News which reports on
-  something already happening/announced now), `published_date`, `end_date`
-  — both are `<input type="date">`. The two types take **opposite**
-  constraints on `published_date`: plain News can't be in the future (it's
-  retrospective/immediate — `max` = today, no `min`), an Event must be in
-  the future (`min` = tomorrow, no `max`) — `updatePublishedConstraints()`
-  in `app.js` swaps the attribute pair when the Event checkbox changes.
-  `end_date` must always be strictly after whatever `published_date`
-  currently holds regardless of type (its `min` attribute updates live
-  when `published_date` changes). Enforced both via the native HTML
-  `min`/`max` attributes and a JS check on submit as a fallback. `image`
-  (cropped the same way as every other photo field). Custom
-  `renderNewsSection` in `app.js` — the cross-field date logic and image
-  cropper don't fit a generic builder. Public-site visibility
-  (`isNewsActive()` in `site.js`, used by `news.html` and the Home page's
-  News feed) differs by type: plain News needs `published_date <= today <=
-  end_date`; an Event skips the `published_date` gate entirely and shows
-  until `end_date` passes, so an Event is visible immediately even though
-  its `published_date` is necessarily still in the future. Sort order also
-  differs and is intentionally opposite: Events sort nearest-date-first
-  (what's coming up soonest matters most), News sorts newest-first — see
-  `initNewsPage`'s separate "Upcoming Events"/"News" sections and Home's
-  combined feed (`activeEvents` ascending, `activeArticles` descending,
-  concatenated so the nearest event or else the latest news leads).
-- `ContentBlocks` (PK `block_id`): `title`, `body` (textarea), `image`
-  (cropped photo), `special` (boolean checkbox — shown in the admin as a
-  search-engine NoIndex hint; no longer controls sidebar inclusion, see
-  "Public site layout" in architecture.md), `generator` (dropdown —
-  `CONTENT_BLOCK_GENERATORS` in `admin/app.js`: None/Coaches/Rosters/
-  Schedule/News/Contact Us/Sponsors/Photos/Standings/Regional Leagues/Logo/Mission
-  Statement/Store/Sponsorships/Donate/Games Online — which dedicated public page this
-  block drives, see "Content Blocks → page mapping" in architecture.md;
-  "Logo" doesn't drive a page, it's the sidebar's brand block, see
-  "Sidebar brand/record/footer" above; Store/Sponsorships/Donate/Games Online render
-  `body` as raw HTML rather than plain intro text, see same section),
-  `league_name` (free text, admin form shows this field only when
-  Generator is "Logo" — the league name shown in the sidebar footer and
-  atop the Home page's standings teaser),
-  `order` (drag-to-reorder, same pattern as Coaches). Uses the generic
-  `contentBlocksMeta()`/`renderGenericSection()` engine (see "Admin UI" in
-  architecture.md) — its Body field is the one place `html: true` triggers
-  the Write/Preview tab toggle, and `league_name` is the one field using
-  `visibleIf` (shown only when Generator is "Logo").
-- `Coaches` (PK `coach_id`): `name`, `title`, `email` (rendered as a
-  `mailto:` link on the public Coaches page), `profile`, `image` (a
-  CloudFront URL to the cropped photo in S3), `order` (integer,
-  drag-to-reorder in the admin UI; the `coaches` Lambda sorts GET-list
-  results by this field, and defaults it to a timestamp on create so new
-  coaches land at the end; reordering rewrites `order` sequentially,
-  0-based, for every coach)
-- `Contacts` (PK `contact_id`): `kind` (one of `Program`/`School`/
-  `Boosters`/`Social` — see `CONTACT_KINDS` in `app.js`, a fixed
-  `<select>`; shown as a small eyebrow label above the contact's name on
-  the public page), `label` (free text, e.g. "General Info"), `role` (free
-  text sub-label, e.g. "Head Coach, Varsity" — shown under the label in
-  place of `type` when set), `type` (one of `Email`/`Physical Address`/
-  `Instagram`/`Phone`/`Website` — see `CONTACT_TYPES` in `app.js`; it's a
-  fixed `<select>`, not free text, so adding a new contact type means
-  updating that array *and* `contactValueNode()` in `site.js`, which
-  switches on `type` to decide how `value` renders/links; `Phone` renders
-  as a `tel:` link, stripping everything but leading `+` and digits from
-  `value` for the href; `Website` renders as a plain external link,
-  prefixing `value` with `https://` if it wasn't entered with a scheme
-  already), `value` (free-text textarea — holds an email, a full mailing
-  address, an @handle, a phone number, or a URL depending on `type`),
-  `order` (drag-to-reorder, same
-  pattern as Coaches). `renderContactsSection` in `app.js`. The public
-  Contact page (`initContactPage` in `site.js`) pulls the `Physical
-  Address` contact out of the flat list into its own "gym" section
-  (address split into street/city-state-zip lines, a `mapsUrl()`-linked
-  "Directions" button, and a purely decorative `.gym-photo-placeholder`
-  — there's no image field on Contacts, this is a design placeholder
-  copied from the mockup, not backed by real data) — every other contact
-  renders as a `.contact-grid` of `.contact-card`s (kind eyebrow / label /
-  role / value link), matching the design mockup's two-column contact
-  list + gym-block layout.
-- `Sponsors` (PK `sponsor_id`): `name`, `kind` (free text business
-  category, e.g. "Orthodontics · Thousand Oaks"), `website` (free text
-  URL), `tier` (one of `Banner`/`Court`/`Friend of the Program` — see
-  `SPONSOR_TIERS` in `app.js`, a fixed `<select>` like `CONTACT_TYPES`),
-  `order` (drag-to-reorder). `renderSponsorsSection` in `app.js` is a
-  direct copy of `renderContactsSection`'s shape. Public `sponsors.html`
-  groups sponsors by `tier` (fixed order Banner → Court → Friend of the
-  Program); the home page's sponsor strip lists `/sponsors` names instead
-  of the old free-text Content Block body.
-- `Albums` (PK `album_id`): `title`, `date_label` (free text — a month or
-  a date range, e.g. "November" or "Dec 20–22", not a real date type since
-  events don't cleanly fit one), `description` (free-text textarea — a
-  short paragraph about the album, shown on the public Photos page under
-  its title/date label, same `page-intro` treatment as every other
-  section's intro text), `order` (drag-to-reorder), `linked`
-  (optional map `{ref, label}` — ties an album to a specific News/Event
-  post or Schedule game, e.g. a game-night gallery to that game, an event
-  recap gallery to its News/Event post; `ref` is `news:<post_id>` or
-  `schedule:<season>:<game_id>`, `label` is the display text cached at
-  save time so the admin table doesn't need an extra lookup to show it).
-  Set via the admin's "Link to News/Event or Game" field on the album
-  form — a native `<input list>`/`<datalist>` autocomplete
-  (`buildLinkSearchField`/`albumLinkOptions()` in `app.js`) built from
-  `/news` + the current season's `/schedule` merged into one searchable
-  list. The public News/Event pages read `linked` for its `news:<post_id>`
-  form only (not `schedule:...`) - `fetchNewsPhotoIndex()` in `site.js`
-  reverse-looks-up which album(s) are linked to a given post, and a full
-  article (both `news.html`'s own posts and the Home page's "Full
-  Article" modal) shows that post's linked album's photos as a carousel
-  (`buildPhotoCarousel()`) at the end of the article, see "News/Event
-  photo carousel" in architecture.md. Individual photos live in the separate
-  `Photos` table below, mirroring the Rosters/Players split. The admin's
-  Photos tab (`renderAlbumsSection` in `app.js`) shows the album list, and
-  a "Photos" button per album drills into a `photosMeta(album, back)` view
-  scoped to that `album_id` — same generic-engine drill-down pattern as
-  Rosters' "Players" button.
-- `Photos` (PK `album_id`, SK `photo_id`): `image` (CloudFront URL from
-  the shared `/uploads` presigned-URL flow), `caption` (free text),
-  `order` (drag-to-reorder). Unlike every other image field, photo upload
-  skips `createImageField`'s square-crop canvas entirely — `uploadImageBlob()`
-  is called directly on the raw selected file — since these are candid
-  event photos at their natural aspect ratio, not avatar crops. Public
-  `photos.html` renders one section per album (title + date label) with a
-  photo grid below, sorted by `order`.
-- `Standings` (PK `cache_id`, always the literal string `"current"` — a
-  singleton cache row, not a keyed list): `source_url` (the MaxPreps
-  league standings page to scrape — editable in the admin's League
-  Standings tab, so a season URL change needs no redeploy), `updated_at`
-  (unix timestamp), `rows` (list of maps: `rank`, `school`,
-  `league_record`, `league_pct`, `league_pf`, `league_pa`,
-  `overall_record`, `overall_pct`, `overall_pf`, `overall_pa`, `streak`,
-  `link` — a URL to that school's own site, admin-set, never scraped).
-  `backend/functions/standings/handler.py` is a screen-scraper, not CRUD,
-  with three actions instead: `GET` (public) serves the cached row
-  instantly — no live scraping on read, per the user's explicit ask.
-  `POST` (JWT, the admin's "Refresh Now" button) fetches `source_url` via
-  `urllib.request` and parses the table with plain regex (confirmed
-  server-rendered, no JS needed; see the handler's docstring for the
-  exact markup shape it expects), then overwrites the cache — merging
-  each new row's `link` forward from the previous cache by matching
-  `school` case-insensitively, since `link` only ever comes from the
-  admin, never from MaxPreps, and would otherwise be wiped out by every
-  refresh. Returns a 502 with the error message on fetch/parse failure
-  rather than silently no-oping — but a MaxPreps markup change that still
-  "parses" as zero rows won't trigger that; this is an inherent
-  screen-scraping fragility, not a bug to fix generically. `PUT` (JWT) is
-  the admin's "Save Changes" action for manually editing any field
-  (including fixing a scrape error) — persists the given `rows` array
-  as-is with no scraping involved, but a later Refresh Now will still
-  overwrite non-`link` fields with whatever MaxPreps reports next. An
-  event with no `requestContext` (a direct/EventBridge invoke rather than
-  an API Gateway call) is treated as an implicit refresh (same as POST)
-  using the last saved `source_url` — no scheduled trigger exists yet
-  (refresh is manual-only for now), this just means adding one later
-  needs no handler changes.
-- `Rankings` (PK `cache_id`, two singleton rows): regional power
-  rankings across a fixed set of MaxPreps leagues (`TRACKED_LEAGUES` in
-  `backend/functions/rankings/handler.py` — Marmonte, Coastal Canyon,
-  Channel, Citrus Coast, Tri-Valley, Frontier, Mission, Gold Coast, West
-  Valley, Valley Mission), so teams that never meet can still be ranked via
-  common opponents. Each league is found through one *seed school*'s
-  standings page rather than a hardcoded `leagueid` URL, so a new season
-  needs no code change; a seed that lands in a different league slug is
-  reported in `warnings`, not silently followed. The `"current"` row holds
-  `teams` (tracked teams only: `name`, `league`, `section`, `record`,
-  `games`, `avg_margin`, `sos`, `srs`/`srs_rank`, `url`),
-  `leagues`, `settings`, `game_count`, `updated_at`, `warnings`. The
-  `"games"` row holds every scraped game in a compact list-of-lists form
-  (see the handler) for debugging/recomputing — trimmed to games involving
-  a tracked team (and marked `truncated`) if the full set would near
-  DynamoDB's 400KB item limit. One rating, capping each game's
-  margin at 15 points: SRS, a least-squares fit (home court fixed at 3
-  pts, one phantom 0-margin game per team as a ridge prior so
-  early-season ratings stay finite and shrink toward 0) — a rating is
-  "points better than an average team". Because it's solved over the
-  whole season at once, a win over a team that later improves counts for
-  more on every refresh. (An Elo rating used to sit alongside it but was
-  dropped — being order-dependent, it never re-credited old wins that
-  way.) Outside opponents (teams a tracked team played that
-  aren't in a tracked league) get their *own* schedules scraped too, one
-  level out, so they're rated from real results rather than assumed
-  average — which is what makes a tracked team's SOS and its wins over
-  outside teams meaningful; their opponents (two levels out) enter the
-  solve but aren't scraped further. Scraped most-connected first, and new
-  outside scrapes stop 2 min before the Lambda's 900s timeout (a cut-off
-  run notes it in `warnings`); a failed outside scrape is only a warning.
-  SRS is solved by conjugate gradient on the sparse schedule graph
-  (`_solve_srs_system`) — dense elimination doesn't scale to the high
-  hundreds of rated teams this reaches late season, and there's no numpy
-  in the Lambda runtime. Every rated team is used in the math, but only
-  tracked teams are ranked or returned; `game_count` counts games
-  involving a tracked team, `rated_game_count`/`rated_team_count`
-  everything in the solve. `GET /rankings` (public) serves
-  the cache; a refresh runs from the daily EventBridge rule
-  (`cron(0 12 * * ? *)`, `infra/api.tf`), `aws lambda invoke
-  --function-name basketball-website-rankings --payload '{}' out.json`, or
-  the admin's "Refresh rankings" button (Season → League Standings, under
-  the standings table). A full scrape (~100 pages early season, a few
-  hundred late; minutes) outlasts API Gateway's 30s timeout, so `POST
-  /rankings` (JWT, `Edit Season`) doesn't scrape in-request: it re-invokes
-  the same Lambda asynchronously and returns 202. A `"refresh"` lock row
-  (`started_at`, taken with a conditional put; held by every refresh
-  including the scheduled one, cleared in a `finally`, considered stale
-  after 16 min in case a run is killed at the 900s timeout) makes a second
-  POST return 409 instead of starting an overlapping scrape. `GET` adds
-  `refresh_started_at` while a run is live, and the admin polls on that
-  until it clears. Async retries are off (`maximum_retry_attempts = 0`),
-  so a failed refresh doesn't immediately re-scrape twice more. A refresh where more than half the schedule
-  scrapes fail raises instead of overwriting the cache. Each team also
-  carries MaxPreps' own league-table numbers (`league_record`/`league_pf`/
-  `league_pa`/`overall_record`/`overall_pf`/`overall_pa`/`streak`, same
-  shape as `Standings` rows) alongside `record`, which is computed from the
-  scraped games the ratings use — the two can differ slightly. Read by the
-  public Regional Leagues page (see architecture.md); the admin reads
-  only `updated_at`/`refresh_started_at`, for its refresh panel. Teams also carry `address`/`lat`/`lng` for the School Map tab:
-  the street address is the first schema.org `PostalAddress` JSON-LD
-  block on the team's MaxPreps schedule page (already fetched — later
-  blocks are opponents'), geocoded with OpenStreetMap's Nominatim
-  (`geocode()`: structured street, then street minus periods/direction
-  word, then "<name> School, city", then ZIP centroid). Nominatim's policy
-  is ≤1 request/s, an identifying User-Agent, and caching — so a third
-  `"geo"` row caches `locations` (`team_id` → `{address, lat, lng}`) and a
-  school is only re-geocoded when its scraped address string changes; a
-  school that can't be placed is just missing from the map (and noted in
-  `warnings`). Teams also carry `color1`/`color2` ("#rrggbb"),
-  MaxPreps' school colors from the team's own embedded record on the same
-  schedule page (MaxPreps draws these from a fixed named palette, so
-  they're close to, not exactly, each school's real colors) — used for the
-  standings shield badges outside the hand-sampled `SCHOOL_COLORS` map.
-- `AdminAllowlist` (PK `email`) — surfaced in the admin UI as the
-  Administration → Users tab (`usersMeta()`/`backend/functions/users`):
-  `email`, `first_name`, `last_name`, `permissions` (list, any of `Admin`/
-  `Edit Season`/`Edit Rosters`/`Edit Contacts`/`Edit Content` — `Admin`
-  implies every other permission everywhere it's checked). Presence of a
-  row here (regardless of `permissions`) is what
-  `post_auth_allowlist` checks to allow sign-in at all; `permissions` is a
-  separate, later addition layered onto the same table, which is why a row
-  with no `permissions` attribute at all (created via
-  `scripts/seed_allowlist.py`, or predating this feature) is treated as
-  implicit `Admin` everywhere permissions are read (`_caller_permissions()`,
-  duplicated per handler like every other piece of boilerplate — see
-  "Not yet done" in `CLAUDE.md`) rather than silently locking existing
-  admins out — an explicit empty list (saved through the Users UI itself)
-  is what actually means "no permissions". Every write endpoint across
-  every resource looks up the caller's `permissions` this way and requires
-  the section's specific permission (or `Admin`); GET stays public exactly
-  as before for every resource except `/users` itself, which is JWT-only
-  and further restricted to `Admin` (a signed-in user may still `GET` their
-  own row, since the admin UI needs that on every login to decide what to
-  show). The `users` Lambda also refuses to remove or delete the last
-  remaining `Admin`, to avoid a self-inflicted lockout. Manage the bare
-  allowlist (bootstrap only — new rows this way have no name/permissions
-  yet, so are implicit `Admin` until edited through Users) with
-  `scripts/seed_allowlist.py add|remove|list <email>` (uses the `.venv` in
-  the repo root — `pip install boto3` into it if missing).
-- `Locations` (PK `location_id`): `name`, `address`, `order` (drag-to-
-  reorder, same pattern as Coaches). Admin-only convenience list under
-  Season → Locations (`locationsMeta()`/`backend/functions/locations`,
-  gated on `Edit Season` like Schedule/Standings) — exists purely so the
-  Schedule form can pick a venue instead of retyping its name/address on
-  every Away game; nothing on the public site reads `Locations` directly,
-  since Schedule denormalizes the picked row's `name`/`address` onto its
-  own item at save time (see `Schedule` above).
+One DynamoDB table per resource. Drag-reorderable lists carry `order`
+(integer; the Lambda sorts GET-list results by it and defaults it to a
+timestamp on create so new items land last; reordering rewrites it 0-based
+— and every edit must echo it back, see gotchas). Fixed `<select>` value
+lists live as constants in `admin/app.js`.
 
-## Seed / backfill scripts (historical)
+- **`Rosters`** (PK `team_id`): `name`, `description` (shown on the team's
+  `roster.html`), `image` (cropped), `coach_ids` (many-to-many with Coaches,
+  joined client-side), `order`.
+- **`Players`** (PK `team_id`, SK `player_id`): `first_name`, `last_name`,
+  `number`, `height`, `year` (`PLAYER_YEARS`: Freshman/Sophomore/Junior/
+  Senior), `profile`, `image` (cropped). Admin: Rosters → a team's Players
+  button. No `order`.
+- **`Schedule`** (PK `season` e.g. `2026-2027`, SK `game_id`): `date`, `time`
+  (free text — "TBA" is common), `team_id` (a roster), `opponent`,
+  `home_away` (`Home`/`Away`/`Neutral`; `matchupPrefix()` in `shared.js`
+  renders Away as "at Opponent", Home/Neutral as "vs Opponent"),
+  `location_id` (a `Locations` row), `location`/`address` (a copy of that
+  row's name/address written at save time), `is_league` (checkbox; nothing
+  on the public site reads it today), `our_score`, `opponent_score`.
+  - The location fields only appear in the admin form for Away/Neutral
+    games (`visibleIf`); Home is always our gym. They're hidden, not
+    cleared, so a Home game keeps any stored address. No free-text venue —
+    add a `Locations` row first.
+  - `location_id` is the source of truth: the admin list
+    (`gameLocationText`/`gameAddressText`) and the public pages
+    (`gameLocation()` on Schedule, `gameAddress()` on Home) resolve it
+    against a live `/locations` fetch, falling back to the stored copy only
+    when there's no match. So renaming a Location updates every linked
+    game with no re-save. The address only needs to be something Google
+    Maps can search (`mapsUrl()`); there's no geocoding.
+  - Admin (`renderScheduleSection`, bespoke): loads `defaultSeason()`,
+    team filter, sortable List view (no reorder — games sort by date) and
+    a Calendar view (`paintCalendar`; click a day or chip to add/edit) that
+    re-centers on the earliest game when a season is loaded.
+- **`News`** (PK `post_id`): `title`, `body`, `is_event` (an upcoming item
+  like a clinic, vs. a report on something now), `published_date`,
+  `end_date`, `image` (cropped). Date rules, checked on Save by
+  `newsMeta().validate`: plain News can't be future-dated, an Event must
+  be (strictly after today), and `end_date` must be after
+  `published_date`. Public visibility (`isNewsActive()`): News shows while
+  `published_date <= today <= end_date`; an Event skips the
+  published-date check and shows until `end_date`. Events sort
+  nearest-first, News newest-first (`news.html` has separate sections;
+  Home concatenates events then news). No `order`.
+- **`ContentBlocks`** (PK `block_id`): `title`, `body`, `image` (cropped),
+  `special` (admin-only search-engine NoIndex hint; doesn't affect the
+  nav), `generator` (`CONTENT_BLOCK_GENERATORS`: none, Coaches, Rosters,
+  Schedule, News, Contact Us, Sponsors, Photos, Standings, Regional
+  Leagues, Logo, Mission Statement, Store, Sponsorships, Donate, Games
+  Online — which page the block drives; see "Content Blocks → pages" in
+  architecture.md), `league_name` (form shows it only for the Logo
+  generator), `order`. Body is the one `html: true` field (Write/Preview
+  toggle).
+- **`Coaches`** (PK `coach_id`): `name`, `title`, `email` (a `mailto:` link
+  publicly), `profile`, `image` (cropped), `order`.
+- **`Contacts`** (PK `contact_id`): `kind` (`CONTACT_KINDS`: Program/
+  School/Boosters/Social — the card's eyebrow), `label` (e.g. "General
+  Info"), `role` (e.g. "Head Coach, Varsity"; shown under the label),
+  `type` (`CONTACT_TYPES`: Email/Physical Address/Instagram/Phone/Website),
+  `value` (the email, address, @handle, number, or URL), `order`.
+  `contactValueNode()` in `site.js` switches on `type` to render `value`
+  (Phone → `tel:` with only `+`/digits; Website → link, `https://` added
+  if missing), so a new type needs both the constant and that function.
+  The Contact page (`initContactPage`) lifts the `Physical Address`
+  contact into a "gym" block (address lines, Directions button, and a
+  decorative `.gym-photo-placeholder` — Contacts have no image) and shows
+  the rest as `.contact-card`s.
+- **`Sponsors`** (PK `sponsor_id`): `name`, `kind` (business category,
+  e.g. "Orthodontics · Thousand Oaks"), `website`, `tier`
+  (`SPONSOR_TIERS`: Banner/Court/Friend of the Program — `sponsors.html`
+  groups by tier in that order), `order`. Home shows one at random as the
+  Sponsor Spotlight.
+- **`Albums`** (PK `album_id`): `title`, `date_label` (free text, e.g.
+  "Dec 20–22"), `description`, `order`, `linked` (optional `{ref, label}`:
+  `ref` is `news:<post_id>` or `schedule:<season>:<game_id>`, `label` is
+  cached display text). The admin's "Link to News/Event or Game" field is
+  a `<datalist>` autocomplete (`buildLinkSearchField`/`albumLinkOptions`)
+  over `/news` plus the current season's games. The public site reads
+  only `news:` links (the article photo carousel). Admin: Photos tab →
+  an album's Photos button.
+- **`Photos`** (PK `album_id`, SK `photo_id`): `image` (uploaded uncropped —
+  `raw: true`), `caption`, `order`. `photos.html` shows one section per
+  album.
+- **`Locations`** (PK `location_id`): `name`, `address`, `order`. Season →
+  Locations in the admin, gated on `Edit Season`. Picked by Schedule's
+  Away/Neutral games; the public Schedule and Home resolve games'
+  `location_id` against `/locations`.
+- **`Standings`** (PK `cache_id` = `"current"`, a singleton): `source_url`
+  (MaxPreps league page, editable in the admin so a new season needs no
+  redeploy), `updated_at`, `rows` (`rank`, `school`, `league_record`/
+  `_pct`/`_pf`/`_pa`, `overall_record`/`_pct`/`_pf`/`_pa`, `streak`, `link`
+  — `link` is admin-set, never scraped). `standings/handler.py` is a
+  screen-scraper: `GET` (public) serves the cache, never scraping live;
+  `POST` (JWT, the admin's "Refresh from source") fetches `source_url`,
+  regex-parses the server-rendered table (markup shape in the docstring),
+  and overwrites the cache, carrying each school's `link` forward by
+  case-insensitive name match; `PUT` (JWT, the admin's Add/Edit/Delete
+  school dialogs) saves `rows` as given — a later refresh still
+  overwrites everything but `link`. A fetch/parse error returns 502, but
+  a markup change that parses as zero rows won't — inherent to scraping.
+  An invoke with no `requestContext` refreshes from the saved
+  `source_url`; no schedule triggers it today.
+- **`Rankings`** (PK `cache_id`, four singleton rows): regional SRS ratings
+  across `TRACKED_LEAGUES` in `rankings/handler.py` (Marmonte, Coastal
+  Canyon, Channel, Citrus Coast, Tri-Valley, Frontier, Mission, Gold
+  Coast, West Valley, Valley Mission).
+  - **`"current"`**: `teams` (tracked teams only — `name`, `league`,
+    `section`, `record`, `games`, `avg_margin`, `sos`, `srs`/`srs_rank`,
+    `url`, MaxPreps' own `league_*`/`overall_*`/`streak` table numbers,
+    `address`/`lat`/`lng`, `color1`/`color2`), `leagues`, `settings`,
+    `game_count` (games involving a tracked team), `rated_game_count`/
+    `rated_team_count` (everything in the solve), `updated_at`,
+    `warnings`. `record` is computed from the scraped games, so it can
+    differ slightly from MaxPreps' `overall_record`.
+  - **`"games"`**: every scraped game, compact list-of-lists, for debugging;
+    trimmed to tracked teams' games (`truncated`) near DynamoDB's 400KB
+    limit.
+  - **`"geo"`**: Nominatim geocode cache (`team_id` → `{address, lat, lng}`),
+    re-geocoded only when a school's scraped address changes (Nominatim
+    policy: ≤1 req/s, identifying User-Agent, cache results). The address
+    is the first schema.org `PostalAddress` on the team's MaxPreps schedule
+    page; `geocode()` tries the street, a simplified street, "<name>
+    School, city", then the ZIP centroid. Unplaceable schools are left off
+    the map and noted in `warnings`.
+  - **`"refresh"`**: the refresh lock (`started_at`), below.
+  - **Leagues** are found via one seed school each, not a hardcoded league
+    URL, so a new season needs no code change; a seed that moves to another
+    league is reported in `warnings`.
+  - **SRS**: least-squares, each margin capped at 15, home court fixed at
+    3 pts (none for neutral games — tournaments, or both schedules
+    disagreeing on home/away), plus one phantom 0-margin game per team as
+    a ridge prior so early ratings stay finite. Solved over the whole
+    season, so beating a team that later improves keeps gaining credit.
+    Solved by conjugate gradient (`_solve_srs_system`) — no numpy in the
+    runtime, and dense elimination doesn't scale to the high hundreds of
+    teams. Outside opponents' schedules are scraped one level out (most-
+    connected first) so they're rated from real results; their opponents
+    enter the solve unscraped. New outside scrapes stop 2 min before the
+    900s timeout (noted in `warnings`); a refresh where over half the
+    schedule scrapes fail raises rather than overwrite the cache.
+  - **Refresh**: `GET /rankings` (public) serves the cache plus
+    `refresh_started_at` while a run is live. Refreshes come from the daily
+    EventBridge rule (`cron(0 12 * * ? *)`), `aws lambda invoke
+    --function-name basketball-website-rankings --payload '{}' out.json`,
+    or the admin's "Refresh rankings" button (League Standings tab). A
+    scrape takes minutes — past API Gateway's 30s — so `POST /rankings`
+    (JWT, `Edit Season`) re-invokes the Lambda asynchronously and returns
+    202. Every refresh holds the `"refresh"` lock (conditional put,
+    cleared in a `finally`, stale after 16 min), so a second POST gets 409;
+    the admin polls until it clears. Async retries are off
+    (`maximum_retry_attempts = 0`) so a failure doesn't re-scrape twice.
+- **`AdminAllowlist`** (PK `email`; admin Administration → Users,
+  `usersMeta()`/`users` Lambda): `first_name`, `last_name`, `permissions`
+  (any of `Admin`/`Edit Season`/`Edit Rosters`/`Edit Contacts`/`Edit
+  Content`; `Admin` implies all). Having a row is what lets someone sign in
+  (`post_auth_allowlist`). A row with **no** `permissions` attribute
+  (bootstrap rows, or pre-permissions) counts as `Admin` so existing admins
+  weren't locked out; an explicit empty list means none. Every write
+  endpoint checks the caller's row via `_caller_permissions()` (duplicated
+  per handler — see "Not yet done" in CLAUDE.md) for its section's
+  permission or `Admin`. `/users` is JWT-only and `Admin`-only, except a
+  user may read their own row (the admin UI needs it at login). The
+  Lambda refuses to remove the last `Admin`. Bootstrap with
+  `scripts/seed_allowlist.py add|remove|list <email>` (repo `.venv`;
+  `pip install boto3` if missing).
 
-The one-off seed/backfill/migration scripts that originally populated
-Rosters, Schedule, News, Sponsors, Contacts, Content Blocks, and
-`Locations` (and later backfilled `time`/`team_id`/`address`/`location_id`
-onto already-seeded Schedule games) have been deleted from `scripts/` —
-each had already done its one job (DynamoDB is the durable record now) and
-none of them re-ran automatically or safely re-ran at all (most `put_item`
-new rows rather than upsert). `Locations` is the live source of truth for
-game addresses today, populated by hand through the admin's Season →
-Locations tab — the old scraped/hardcoded address mappings are gone with
-the scripts that wrote them.
+## Scripts
 
-`scripts/seed_allowlist.py` is the one script still in the repo — see
-`AdminAllowlist` above; it's an ongoing CLI, not a one-off.
+The one-off seed/backfill scripts that first populated these tables are
+gone — DynamoDB is the record now, and most weren't safe to re-run.
+`scripts/seed_allowlist.py` is the only script left (see `AdminAllowlist`).
