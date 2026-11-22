@@ -996,7 +996,7 @@ function newsMeta() {
       { key: "is_event", label: "Event", type: "checkbox", checkLabel: "Event (upcoming, must be dated in the future)", span: 1 },
       { key: "published_date", label: "Published date", type: "date", required: true, span: 1, help: "Events must be in the future; plain News can't be." },
       { key: "end_date", label: "End date", type: "date", span: 1, help: "Must be after the published date." },
-      { key: "body", label: "Story", type: "textarea", span: 2, placeholder: "A 14-2 run to close the third quarter decided it." },
+      { key: "body", label: "Story", type: "textarea", span: 2, html: true, placeholder: "A 14-2 run to close the third quarter decided it." },
       { key: "image", label: "Photo", type: "file", span: 2 },
     ],
     validate(values) {

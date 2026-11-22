@@ -817,45 +817,196 @@ h4 {
   margin: 0 0 0.3rem;
 }
 
-.news-lead {
+/* Home News: the first two feed items side by side (2/3 + 1/3), each a
+   small photo left of its text so most of the story stays visible, then
+   up to three compact photo + title cards that open the full story. */
+.news-top {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
   margin-top: 1rem;
 }
 
-.news-lead-photo {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+.news-top--single {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.news-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1.75rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
+/* The lead story opens its full text on click (see buildFeatured). */
+.news-feature--clickable {
+  cursor: pointer;
 }
 
-/* Fixed-height excerpt boxes - if the body text overflows, a "Full
-   Article" link (addFullArticleLink in site.js) opens the complete text
+.news-feature--clickable:hover h3 {
+  text-decoration: underline;
+}
+
+.news-feature--clickable:focus-visible {
+  outline-offset: 4px;
+}
+
+.news-feature-body {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.news-feature-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.news-feature h3 {
+  margin: 0 0 0.6rem;
+}
+
+.news-feature .stat-meta {
+  margin-top: 0;
+}
+
+/* News photos are shown whole, never cropped - uploads aren't cropped to
+   a shape, so a fixed-ratio box + cover clipped them. Natural shape here,
+   capped so a tall photo can't stretch the row. */
+.news-feature-photo {
+  flex: 0 0 auto;
+  width: 150px;
+  height: auto;
+  max-height: 14rem;
+  object-fit: contain;
+}
+
+/* Second top item: the same compact .news-card as the carousel. */
+.news-top-side {
+  padding-left: 1.5rem;
+  border-left: 1px solid var(--border);
+}
+
+/* Fixed-height excerpt box - clicking the card opens the complete text
    in openNewsModal() instead of growing the card or the page. */
 .news-excerpt {
   max-height: 11rem;
   overflow: hidden;
 }
 
-.news-excerpt-card {
-  max-height: 4.5rem;
+/* Second row: a scroll-snap carousel of compact cards - three per view on
+   desktop, ~1.5 on phones so the next card peeks in. */
+.news-carousel {
+  margin-top: 1.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+/* No display rule, so the `hidden` attribute that hides these when every
+   card fits isn't overridden. */
+.news-carousel-controls {
+  text-align: right;
+  margin-bottom: 0.5rem;
+}
+
+.news-carousel-btn {
+  width: 2rem;
+  height: 2rem;
+  margin-left: 0.4rem;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-accent-700);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.news-carousel-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.news-carousel-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.news-carousel-track {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.news-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.news-card {
+  flex: 0 0 calc((100% - 3rem) / 3);
+  scroll-snap-align: start;
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.news-card h4 {
+  margin: 0.5rem 0 0;
+}
+
+.news-card:hover h4 {
+  text-decoration: underline;
+}
+
+.news-card-photo,
+.news-card-text {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+/* Cards keep a uniform 16:9 box so the row lines up; the photo fits
+   inside it whole, the spare space matching the .plate mat. */
+.news-card-photo {
+  object-fit: contain;
+  background: var(--color-surface);
+}
+
+/* Stands in for the photo when a story has none: its opening text in the
+   same 16:9 box, framed to match the .plate mat. */
+.news-card-text {
+  overflow: hidden;
+  padding: 0.7rem 0.8rem;
+  background: var(--color-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.news-card-text p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: left;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
 @media (max-width: 720px) {
-  .news-lead {
-    grid-template-columns: 1fr;
+  .news-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .news-top-side {
+    padding-left: 0;
+    padding-top: 1.25rem;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .news-feature-photo {
+    width: 96px;
+  }
+
+  /* ~1.5 cards per view so the next one visibly peeks in. */
+  .news-card {
+    flex-basis: 62%;
   }
 }
 
@@ -1072,6 +1223,9 @@ img.thumb-clickable {
 
 .coach-modal-close {
   position: absolute;
+  /* Above the photo: .plate's filter gives the image its own stacking
+     layer, which would otherwise paint over this button. */
+  z-index: 2;
   top: 0.5rem;
   right: 0.75rem;
   background: transparent;
@@ -1114,27 +1268,32 @@ img.thumb-clickable {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   padding: 2rem;
-  max-width: 44rem;
+  max-width: 64rem;
   width: 100%;
+  max-height: calc(100vh - 4rem);
   display: flex;
-  gap: 1.5rem;
+  gap: 2rem;
   align-items: flex-start;
 }
 
 .news-modal-photo {
-  width: 220px;
-  height: 220px;
-  object-fit: cover;
+  width: 360px;
+  height: auto;
+  max-height: 70vh;
+  object-fit: contain;
   flex-shrink: 0;
 }
 
 .news-modal-body {
   flex: 1;
   min-width: 0;
+  /* Long unbroken strings (a pasted URL) wrap instead of running past
+     the popup's edge on phones. */
+  overflow-wrap: anywhere;
 }
 
 .news-modal-content {
-  max-height: 22rem;
+  max-height: 50vh;
   overflow-y: auto;
   margin-top: 0.75rem;
   padding-right: 0.5rem;
@@ -1142,6 +1301,9 @@ img.thumb-clickable {
 
 .news-modal-close {
   position: absolute;
+  /* Above the photo: .plate's filter gives the image its own stacking
+     layer, which would otherwise paint over this button. */
+  z-index: 2;
   top: 0.5rem;
   right: 0.75rem;
   background: transparent;
@@ -1153,15 +1315,37 @@ img.thumb-clickable {
   padding: 0.25rem 0.5rem;
 }
 
-@media (max-width: 480px) {
-  .news-modal-content {
-    max-height: 150px;
-  }
+/* The linked album's photos under the story text - bigger than the
+   96px thumbnails elsewhere so they're easy to browse. */
+.news-modal .photo-carousel .photo-carousel-thumb {
+  width: 140px;
+  height: 140px;
+}
 
+@media (max-width: 720px) {
+  /* Extra top padding so the full-width photo starts below the close
+     button rather than under it. */
   .news-modal {
     flex-direction: column;
-    align-items: center;
-    text-align: center;
+    align-items: stretch;
+    gap: 1rem;
+    padding: 2.75rem 1.25rem 1.5rem;
+    overflow-y: auto;
+  }
+
+  .news-modal-photo {
+    width: 100%;
+    max-height: 40vh;
+  }
+
+  .news-modal-content {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .news-modal .photo-carousel .photo-carousel-thumb {
+    width: 110px;
+    height: 110px;
   }
 }
 
@@ -1855,6 +2039,15 @@ tbody tr:hover {
   flex-shrink: 0;
 }
 
+/* News page photos: whole, natural shape (coach/team photos above stay
+   square crops - those are cropped to a square on upload). */
+.news-post img {
+  width: 140px;
+  height: auto;
+  max-height: 12rem;
+  object-fit: contain;
+}
+
 .news-post-date {
   color: var(--muted);
   font-size: 0.85rem;
@@ -1924,6 +2117,9 @@ tbody tr:hover {
 
 .photo-modal-close {
   position: absolute;
+  /* Above the photo: .plate's filter gives the image its own stacking
+     layer, which would otherwise paint over this button. */
+  z-index: 2;
   top: 0.5rem;
   right: 0.75rem;
   background: transparent;
@@ -1993,8 +2189,17 @@ tbody tr:hover {
   flex-grow: 1.75;
 }
 
-.stat-col > a.stat-list-link {
-  padding: 1rem 0 0;
+/* Upcoming's header line: the eyebrow with "Full schedule" on the right. */
+.stat-col-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.stat-head-link {
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .stat-col:last-child {
@@ -2111,6 +2316,12 @@ a.stat-value:hover {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   padding: 1rem 1.25rem;
+}
+
+/* The Home block's league blurb, full width under the standings and
+   sponsor cards (an ordinary .page-intro otherwise). */
+.home-blurb {
+  margin: 1.5rem 0 0;
 }
 
 .home-card > .stat-list-link {

@@ -20,6 +20,24 @@ function el(tag, attrs = {}, children = []) {
 // Events are upcoming items meant to be visible as soon as they're
 // announced (their Published date can be today, unlike News), so they
 // skip the published_date gate entirely and stay visible until end_date.
+// News bodies may hold simple admin-authored HTML (a link, bold text) -
+// rendered as markup, same trust level as the Mission Statement page's
+// body: only an authenticated admin with permission can write News. The
+// container keeps .rich-text's pre-line, so plain-text posts' typed line
+// breaks still show.
+function newsBodyNode(body, className = "rich-text") {
+  const node = el("div", { class: className });
+  node.innerHTML = body || "";
+  return node;
+}
+
+// Tag-free text of a body, for places already inside a link (a carousel
+// card) where nested <a> tags aren't allowed. DOMParser documents are
+// inert - nothing in them loads or runs.
+function newsPlainText(body) {
+  return new DOMParser().parseFromString(body || "", "text/html").body.textContent || "";
+}
+
 function isNewsActive(n, today) {
   if (n.is_event) return !n.end_date || n.end_date >= today;
   return Boolean(n.published_date) && n.published_date <= today && (!n.end_date || n.end_date >= today);
@@ -479,7 +497,12 @@ async function initHomePage() {
     if (thenGames.length) {
       statRow.appendChild(
         el("div", { class: "stat-col stat-col--wide" }, [
-          el("span", { class: "eyebrow", text: "Upcoming" }),
+          // "Full schedule" sits on the header line, not under the list,
+          // so the card stays short.
+          el("div", { class: "stat-col-head" }, [
+            el("span", { class: "eyebrow", text: "Upcoming" }),
+            el("a", { class: "stat-head-link", href: "schedule.html", text: "Full schedule →" }),
+          ]),
           ...thenGames.map((g) => {
             const href = gameMapsHref(g);
             const label = href
@@ -487,7 +510,6 @@ async function initHomePage() {
               : el("span", { text: gameLine(g) });
             return el("div", { class: "stat-list-row" }, [label, el("span", { class: "nums", text: g.date })]);
           }),
-          el("a", { class: "stat-list-link", href: "schedule.html", text: "Full schedule →" }),
         ])
       );
     }
@@ -521,10 +543,12 @@ async function initHomePage() {
   }
   if (statRow.children.length) main.appendChild(statRow);
 
-  // Events (nearest date first) lead over plain news (newest first) -
-  // combined into one feed, the first item becomes the lead article
-  // (matches the demo's Home news section: a lead story with a photo
-  // beside the text, then a grid of smaller cards for the rest).
+  // Events (nearest date first) lead over plain news (newest first),
+  // combined into one feed. The top row is the lead story (2/3 width,
+  // small photo left of the text so plenty of it shows) beside the second
+  // item as a compact card (1/3); everything after that goes in a carousel
+  // of the same compact cards - photo (or, without one, an excerpt in the
+  // photo's place) and title, the whole card opening the full story.
   const activeEvents = news
     .filter((n) => n.is_event && isNewsActive(n, today))
     .sort((a, b) => (a.published_date || "").localeCompare(b.published_date || ""));
@@ -532,60 +556,109 @@ async function initHomePage() {
     .filter((n) => !n.is_event && isNewsActive(n, today))
     .sort((a, b) => (b.published_date || "").localeCompare(a.published_date || ""));
   const feed = [...activeEvents, ...activeArticles];
-  const [lead, ...rest] = feed;
+  const featured = feed.slice(0, 2);
+  const compact = feed.slice(2);
 
-  // If a card's excerpt overflows its fixed-height box, add a "Full
-  // Article" link that opens the full text in a modal (openNewsModal)
-  // rather than growing the card or scrolling the whole page section.
-  function addFullArticleLink(excerptEl, containerEl, item) {
-    if (excerptEl.scrollHeight <= excerptEl.clientHeight + 1) return;
-    const link = el("a", { class: "stat-list-link", href: "#", text: "Full Article" });
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      openNewsModal(item, photosByPostId[item.post_id] || []);
-    });
-    containerEl.appendChild(link);
+  // Every news card opens its full story (openNewsModal) when clicked.
+  function openStory(item) {
+    openNewsModal(item, photosByPostId[item.post_id] || []);
   }
 
-  if (lead) {
-    const leadExcerpt = el("div", { class: "news-excerpt rich-text" }, [document.createTextNode(lead.body || "")]);
-    const leadCol = el("div", {}, [
-      el("h3", { text: lead.title || "" }),
-      el("p", { class: "stat-meta nums", text: lead.published_date || "" }),
-      leadExcerpt,
+  function buildFeatured(item) {
+    const excerpt = newsBodyNode(item.body, "news-excerpt rich-text");
+    const textCol = el("div", { class: "news-feature-text" }, [
+      el("p", { class: "stat-meta nums", text: item.published_date || "" }),
+      excerpt,
     ]);
+    // The title spans the full width over the photo + text row, so it
+    // isn't squeezed into the column beside the photo.
+    const article = el("article", { class: "news-feature" }, [
+      el("h3", { text: item.title || "" }),
+      el(
+        "div",
+        { class: "news-feature-body" },
+        [item.image ? el("img", { class: "plate news-feature-photo", src: item.image, alt: "" }) : null, textCol].filter(Boolean)
+      ),
+    ]);
+    // The whole card opens the story, like the compact cards. It can't be
+    // an <a> itself - the excerpt may contain the post's own links, and
+    // links can't nest - so it's a keyboard-focusable role="link" whose
+    // click handler steps aside for clicks on those inner links.
+    article.classList.add("news-feature--clickable");
+    article.setAttribute("role", "link");
+    article.setAttribute("tabindex", "0");
+    article.setAttribute("aria-label", item.title || "News story");
+    article.addEventListener("click", (e) => {
+      if (e.target.closest("a")) return;
+      // The photo is a .plate - keep the document-level lightbox from
+      // also opening it.
+      e.stopPropagation();
+      openStory(item);
+    });
+    article.addEventListener("keydown", (e) => {
+      if (e.target !== article || (e.key !== "Enter" && e.key !== " ")) return;
+      e.preventDefault();
+      openStory(item);
+    });
+    return { article, excerpt, textCol };
+  }
+
+  function buildCompact(item) {
+    // No photo: the story's opening text fills the same box instead, so
+    // every card in the row lines up.
+    const visual = item.image
+      ? el("img", { class: "plate news-card-photo", src: item.image, alt: "" })
+      : el("div", { class: "news-card-text" }, [el("p", { text: newsPlainText(item.body) })]);
+    const card = el("a", { class: "news-card", href: "#" }, [
+      visual,
+      el("h4", { text: item.title || "" }),
+      el("p", { class: "stat-meta nums", text: item.published_date || "" }),
+    ]);
+    card.addEventListener("click", (e) => {
+      e.preventDefault();
+      // The photo is a .plate - keep the document-level lightbox from
+      // also opening it.
+      e.stopPropagation();
+      openStory(item);
+    });
+    return card;
+  }
+
+  // Horizontally scrolling row (CSS scroll-snap, so swipe/trackpad work
+  // natively) with ‹ › buttons that step one card at a time. The buttons
+  // disable at either end and hide entirely when every card already fits.
+  function buildNewsCarousel(cards) {
+    const track = el("div", { class: "news-carousel-track" }, cards);
+    const prev = el("button", { type: "button", class: "news-carousel-btn", "aria-label": "Previous news", text: "‹" });
+    const next = el("button", { type: "button", class: "news-carousel-btn", "aria-label": "Next news", text: "›" });
+    const controls = el("div", { class: "news-carousel-controls" }, [prev, next]);
+    const step = () => (cards[0]?.offsetWidth || track.clientWidth) + parseFloat(getComputedStyle(track).columnGap || 0);
+    prev.addEventListener("click", () => track.scrollBy({ left: -step(), behavior: "smooth" }));
+    next.addEventListener("click", () => track.scrollBy({ left: step(), behavior: "smooth" }));
+    function update() {
+      const max = track.scrollWidth - track.clientWidth;
+      controls.hidden = max <= 1;
+      prev.disabled = track.scrollLeft <= 1;
+      next.disabled = track.scrollLeft >= max - 1;
+    }
+    track.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    // Needs real layout - the carousel is attached right after this returns.
+    requestAnimationFrame(update);
+    return el("div", { class: "news-carousel" }, [controls, track]);
+  }
+
+  if (featured.length) {
+    const lead = buildFeatured(featured[0]);
+    const side = featured[1] ? el("div", { class: "news-top-side" }, [buildCompact(featured[1])]) : null;
     main.appendChild(
       el("div", { class: "section-divider" }, [
         el("div", { class: "section-heading" }, [el("h2", { text: "News" }), el("a", { href: "news.html", text: "Read more →" })]),
-        el(
-          "article",
-          { class: "news-lead" },
-          [leadCol, lead.image ? el("img", { class: "plate news-lead-photo", src: lead.image, alt: "" }) : null].filter(Boolean)
-        ),
-        rest.length
-          ? el(
-              "div",
-              { class: "news-grid" },
-              rest.slice(0, 3).map((n) => {
-                const excerpt = el("div", { class: "news-excerpt-card card-subtitle" }, [document.createTextNode(n.body || "")]);
-                const card = el("div", {}, [
-                  el("h4", { text: n.title || "" }),
-                  el("p", { class: "stat-meta nums", text: n.published_date || "" }),
-                  excerpt,
-                ]);
-                addFullArticleLink(excerpt, card, n);
-                return card;
-              })
-            )
-          : null,
+        el("div", { class: `news-top${side ? "" : " news-top--single"}` }, [lead.article, side].filter(Boolean)),
+        compact.length ? buildNewsCarousel(compact.map(buildCompact)) : null,
       ].filter(Boolean))
     );
-    addFullArticleLink(leadExcerpt, leadCol, lead);
   }
-
-  // Per request: the Home content block's text sits between the news feed
-  // and the standings teaser, not at the very top of the page.
-  if (homeBlock?.body) main.appendChild(el("p", { class: "page-intro", text: homeBlock.body }));
 
   // Abbreviated standings (Overall W-L only, best overall record first)
   // beside a random Sponsor Spotlight - the full league table lives on
@@ -653,6 +726,10 @@ async function initHomePage() {
     );
   }
   if (homeCards.length) main.appendChild(el("div", { class: "home-split section-divider" }, homeCards));
+
+  // Per request: the Home content block's text (the league blurb) goes
+  // last, full width under the standings + sponsor cards.
+  if (homeBlock?.body) main.appendChild(el("p", { class: "page-intro home-blurb", text: homeBlock.body }));
 }
 
 // Renders `body` as real HTML (innerHTML), not plain text - the Mission
@@ -1147,7 +1224,7 @@ async function initNewsPage() {
           el("div", {}, [
             el("h2", { text: post.title || "", style: "margin-top:0" }),
             el("p", { class: "stat-meta nums", text: post.published_date || "" }),
-            el("p", { class: "rich-text", text: post.body || "" }),
+            newsBodyNode(post.body),
             photos.length ? buildPhotoCarousel(photos) : null,
           ].filter(Boolean)),
         ].filter(Boolean)
@@ -1281,8 +1358,8 @@ function openCoachModal(coach, teamLabel, card) {
 }
 
 // Same fixed-height-modal-with-scrolling-content layout as openCoachModal
-// above, reused here for a News/Event item's full text (see
-// addFullArticleLink in initHomePage) - only the .news-modal-content box
+// above, reused here for a News/Event item's full text (opened by clicking
+// a news card in initHomePage) - only the .news-modal-content box
 // scrolls, so the title/date stay pinned on screen.
 let newsModalBackdrop = null;
 function openNewsModal(item, photos = []) {
@@ -1298,11 +1375,11 @@ function openNewsModal(item, photos = []) {
       el("div", { class: "news-modal-body" }, [
         el("h2", { text: item.title || "", style: "margin-top:0" }),
         el("p", { class: "stat-meta nums", text: item.published_date || "" }),
-        el("div", { class: "news-modal-content" }, [
-          el("p", { class: "rich-text", text: item.body || "" }),
-          photos.length ? buildPhotoCarousel(photos) : null,
-        ].filter(Boolean)),
-      ]),
+        el("div", { class: "news-modal-content" }, [newsBodyNode(item.body)]),
+        // The linked album's photos sit below the scrolling text, always
+        // in view, rather than at the end of it.
+        photos.length ? buildPhotoCarousel(photos) : null,
+      ].filter(Boolean)),
     ].filter(Boolean)
   );
 

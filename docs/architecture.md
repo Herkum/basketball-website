@@ -81,16 +81,29 @@ share `site.js`/`site.css`. `frontend/admin/` is the separate admin SPA
   footer/Home standings. **Home** has no generator and is found by title
   (`findBlock`).
 - **Home** (`initHomePage`): title from the Home block, a season eyebrow,
-  Varsity/JV/Frosh buttons over a `.stat-row` (Last Result / Next Game /
-  Upcoming, computed client-side from `/schedule/<season>`; Next Game
-  links to the venue's directions). Then the News/Events feed (events
-  nearest-first, then news newest-first; a `.news-lead` article plus up to
-  three `.news-grid` cards), then the Home block's body (below the fold on
-  purpose — a specific request), then `.home-split`: a shortened
-  standings card (`.standings-mini`, overall W/L only, ranked by overall
-  win pct, then wins, then fewest losses — overall records include
-  non-league games, so game counts differ) and a random Sponsor
-  Spotlight. Mission Statement isn't on Home; it has its own page.
+  and Varsity/JV/Frosh buttons over a `.stat-row` (Last Result / Next
+  Game / Upcoming, computed client-side from `/schedule/<season>`; Next
+  Game links to the venue's directions; "Full schedule" sits on
+  Upcoming's header line). Then the News/Events feed (events
+  nearest-first, then news newest-first):
+  - `.news-top`: the lead story (2/3 — a full-width title over a small
+    `.plate` photo beside the date and excerpt) and the second item as a
+    compact card (1/3, `.news-top-side`). The lead card opens the full
+    story on click/Enter; it's a focusable `role="link"`, not an `<a>`,
+    because its excerpt can hold the post's own links.
+  - `.news-carousel`: every remaining item (CSS scroll-snap; ‹ › buttons
+    step one card, disable at the ends, and hide when everything fits;
+    3 cards per view on desktop, ~1.5 on phones).
+  - Each compact `.news-card` is a photo — or, with none, the story's
+    opening text in the same 16:9 box (`.news-card-text`) — plus title and
+    date; the whole card opens `openNewsModal()`, calling
+    `stopPropagation()` so the lightbox doesn't also open.
+  - Then `.home-split`: the shortened standings card (`.standings-mini`,
+    overall W/L only, ranked by overall win pct, then wins, then fewest
+    losses — overall records include non-league games, so game counts
+    differ) and a random Sponsor Spotlight. Last, full width, by request:
+    the Home block's body (the league blurb). Mission Statement isn't on
+    Home; it has its own page.
 - **Standings**: the public page and the admin's League Standings table
   build the same layout from the `shared.js` helpers (`parseRecord`,
   `compareStandingsRows`, `standingsPlaces`, `formatPct`, `formatDiff`,
@@ -128,13 +141,21 @@ share `site.js`/`site.css`. `frontend/admin/` is the separate admin SPA
   The Coaches page derives each coach's team(s) from Rosters' `coach_ids`.
 - **News**: `/news` returns everything (the admin needs past/future posts);
   visibility is filtered client-side by `isNewsActive()` — see `News` in
-  content-schemas.md. A full article (`news.html`, or Home's Full Article
-  modal) ends with a carousel of its linked album's photos:
-  `fetchNewsPhotoIndex()` fetches `/albums` once and only the linked
-  albums' `/photos`; `buildPhotoCarousel()` is a scrolling strip of 96×96
-  thumbnails opening `openPhotoModal()` (titled by the caption). Thumbnails
-  call `stopPropagation()` so the document-level `initImageLightbox` doesn't
-  open a second, caption-less popup.
+  content-schemas.md. The story popup (`openNewsModal()`, opened by any
+  Home news card) is up to 64rem wide with a 360px photo and scrolling
+  text; on phones it stacks, with extra top padding so the photo clears
+  the close ×. A full article (`news.html` or the popup) also shows its
+  linked album's photos: `fetchNewsPhotoIndex()` fetches `/albums` once
+  and only the linked albums' `/photos`; `buildPhotoCarousel()` is a
+  scrolling strip of 96×96 thumbnails (140px in the popup, where it sits
+  below the text, always in view) opening `openPhotoModal()` (titled by
+  the caption). Thumbnails call `stopPropagation()` so the document-level
+  `initImageLightbox` doesn't open a second, caption-less popup.
+  News photos are always shown whole (`object-fit: contain`, natural
+  shape with a height cap; Home's cards keep a 16:9 box with the spare
+  space in the `.plate` mat color). New uploads are square-cropped by the
+  admin, but older posts' photos come in other shapes, and a fixed-ratio
+  box with `cover` clipped them. Coach/team photos stay square crops.
 
 ## Admin SPA
 
