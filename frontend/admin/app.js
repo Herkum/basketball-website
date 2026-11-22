@@ -1633,6 +1633,8 @@ async function renderScheduleSection(container) {
       });
       grid.appendChild(cell);
     }
+    const trailing = (7 - ((firstOfMonth.getDay() + daysInMonth) % 7)) % 7;
+    for (let i = 0; i < trailing; i++) grid.appendChild(el("div", { class: "admin-cal-cell is-outside" }));
 
     bodyBox.appendChild(el("div", { class: "admin-cal-header" }, [prevBtn, el("div", { class: "admin-cal-label", text: monthLabel }), nextBtn]));
     bodyBox.appendChild(grid);

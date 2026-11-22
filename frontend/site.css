@@ -55,6 +55,11 @@
   box-sizing: border-box;
 }
 
+/* Phone widths: the sidebar (record box + nav) collapses behind the
+   header's Menu button (initNavToggle in site.js) instead of stacking
+   above every page's content - stacked, it pushed each page's own
+   content more than a full screen down. Opening it shows the sidebar as
+   a full-width panel between the header and the page. */
 @media (max-width: 720px) {
   .layout {
     flex-direction: column;
@@ -62,11 +67,43 @@
 
   #site-sidebar {
     flex: 0 0 auto;
+    display: none;
+    border-bottom: 1px solid var(--border);
   }
 
-  .site-nav {
-    flex-direction: row;
-    flex-wrap: wrap;
+  body.nav-open #site-sidebar {
+    display: block;
+  }
+
+  .site-nav a {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  main {
+    overflow-wrap: break-word;
+  }
+}
+
+.nav-toggle {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .nav-toggle {
+    display: block;
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 0.45rem 0.85rem;
+    background: transparent;
+    color: var(--color-yellow-dk);
+    border: 1px solid var(--color-yellow-dk);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
   }
 }
 
@@ -218,6 +255,31 @@ a {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   padding: 0.55rem 0 0.7rem;
+}
+
+/* Phone-width header: after the base .site-header-inner/.brand-* rules
+   above so it wins on source order. */
+@media (max-width: 720px) {
+  .site-header-inner {
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .brand-logo,
+  .brand-logo-fallback {
+    width: 40px;
+    height: 45px;
+    font-size: 22px;
+    border-radius: 3px 3px 17px 17px;
+  }
+
+  .brand-name {
+    font-size: 1.35rem;
+  }
+
+  .brand-tagline {
+    font-size: 0.7rem;
+  }
 }
 
 .record-box-label {
@@ -801,6 +863,17 @@ p {
   text-align: justify;
 }
 
+/* Justified text in a ~350px phone column leaves wide gaps between words,
+   so phones fall back to ragged-right for every justified paragraph. */
+@media (max-width: 720px) {
+  p,
+  .page-intro,
+  .rich-text-html .mission-intro,
+  .rich-text-html .sponsor-letter p {
+    text-align: left;
+  }
+}
+
 p.sponsors > a {
   text-decoration: none;
   padding: 0.5rem;
@@ -1271,6 +1344,25 @@ tbody tr:hover {
   font-weight: 600;
 }
 
+/* Records ("3-0") and short headers ("W-L") would otherwise break at the
+   hyphen when the table is squeezed. The table already sits in a
+   .table-scroll wrapper, so it scrolls instead. */
+.standings-table--full .col-record,
+.standings-table--full th {
+  white-space: nowrap;
+}
+
+/* Below full desktop width the central column is too narrow for 11
+   columns at the default 10px side padding - tighter padding lets the
+   table fit (from ~900px up) instead of scrolling. */
+@media (max-width: 1100px) {
+  .standings-table--full th,
+  .standings-table--full td {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}
+
 .standings-table--full .group-start {
   border-left: 1px solid color-mix(in srgb, var(--border) 20%, transparent);
 }
@@ -1460,6 +1552,46 @@ tbody tr:hover {
   }
 }
 
+/* Regional Leagues on phones: drop the place column, school badges, and
+   (Ranking tab) the League column so the Ranking and per-league tables
+   fit the screen instead of scrolling. Group labels follow via
+   syncGroupSpans() in site.js. */
+@media (max-width: 720px) {
+  .regional-leagues .standings-table--full {
+    min-width: 0;
+  }
+
+  .regional-leagues .col-place,
+  .regional-leagues .school-badge,
+  .regional-leagues .regional-table .col-league {
+    display: none;
+  }
+
+  /* Leagues tab: Pct is just W-L restated, so drop both Pct columns too.
+     With slightly smaller school names, tighter cells, and less header
+     letter-spacing, even the longest name (Granada Hills Charter) stays
+     on one line. Still inside .table-scroll, so a narrower phone just
+     scrolls that one table a little. */
+  .regional-leagues .standings-table--full .col-pct {
+    display: none;
+  }
+
+  .regional-leagues .standings-table--full th,
+  .regional-leagues .standings-table--full td {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .regional-leagues .standings-table--full thead th {
+    letter-spacing: 0.02em;
+  }
+
+  .regional-leagues .standings-table--full td.col-school,
+  .regional-leagues .standings-table--full td.col-school a {
+    font-size: 0.95rem;
+  }
+}
+
 .filter-row {
   display: flex;
   gap: 0.5rem;
@@ -1485,6 +1617,57 @@ tbody tr:hover {
 .filter-row button.active {
   background: color-mix(in srgb, var(--color-accent) 18%, transparent);
   font-weight: 600;
+}
+
+/* Regional Leagues' School Map league picker - sits in the tab row beside
+   the School Map button (shown only on that tab), skinned to match the
+   row's accent-outlined buttons. No display rule here, so the `hidden`
+   attribute that toggles it isn't overridden. */
+.filter-row .map-league-select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-accent);
+  background: transparent;
+  color: var(--color-accent-700);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-family: var(--font-heading);
+  cursor: pointer;
+  max-width: 100%;
+}
+
+/* On phones, tighten the Regional Leagues tab row so the league picker
+   still fits on the same line as the School Map button (Schedule's and
+   Home's filter rows are unaffected). */
+@media (max-width: 720px) {
+  .regional-tabs {
+    gap: 0.35rem;
+  }
+
+  .regional-tabs button {
+    padding: 0.4rem 0.55rem;
+    font-size: 0.85rem;
+  }
+
+  .regional-tabs .map-league-select {
+    padding: 0.4rem 0.25rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .regional-tabs {
+    gap: 0.3rem;
+  }
+
+  .regional-tabs button {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .regional-tabs .map-league-select {
+    padding: 0.4rem 0.2rem;
+    font-size: 0.8rem;
+  }
 }
 
 .calendar-header {
@@ -1638,6 +1821,29 @@ tbody tr:hover {
   .gym-section {
     grid-template-columns: 1fr;
   }
+}
+
+/* The text column beside the photo is a flex item - without min-width: 0
+   it can't shrink below its longest unbreakable string (e.g. a pasted
+   URL in a post body), which pushed the whole page wider on phones. */
+.news-post > div,
+.coach-row > div,
+.team-header > div {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 480px) {
+  .news-post,
+  .coach-row,
+  .team-header {
+    flex-direction: column;
+    padding: 1rem;
+  }
+}
+
+.schedule-table td.nums {
+  white-space: nowrap;
 }
 
 .news-post img,

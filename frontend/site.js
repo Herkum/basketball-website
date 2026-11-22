@@ -218,8 +218,39 @@ function initImageLightbox() {
   });
 }
 
+// Phone-width menu: below 720px the sidebar (record box + nav) is hidden
+// behind this header button rather than stacking above every page's
+// content (see `body.nav-open` in site.css). Added before initLayout's
+// fetches so the button is there as soon as the page paints.
+function initNavToggle() {
+  const headerInner = document.querySelector(".site-header-inner");
+  const sidebar = document.getElementById("site-sidebar");
+  if (!headerInner || !sidebar || headerInner.querySelector(".nav-toggle")) return;
+  const button = el("button", {
+    type: "button",
+    class: "nav-toggle",
+    "aria-controls": "site-sidebar",
+    "aria-expanded": "false",
+    text: "Menu",
+  });
+  function setOpen(open) {
+    document.body.classList.toggle("nav-open", open);
+    button.setAttribute("aria-expanded", String(open));
+    button.textContent = open ? "Close" : "Menu";
+  }
+  button.addEventListener("click", () => setOpen(!document.body.classList.contains("nav-open")));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && document.body.classList.contains("nav-open")) {
+      setOpen(false);
+      button.focus();
+    }
+  });
+  headerInner.appendChild(button);
+}
+
 async function initLayout() {
   initImageLightbox();
+  initNavToggle();
   const currentFile = window.location.pathname.split("/").pop() || "index.html";
   const currentTeamId = new URLSearchParams(window.location.search).get("team");
 
@@ -759,7 +790,7 @@ async function initRosterDetailPage() {
   const tbody = el("tbody");
   const thead = el("thead");
   main.appendChild(
-    sectionDivider("Players", [el("table", {}, [thead, tbody])])
+    sectionDivider("Players", [el("div", { class: "table-scroll" }, [el("table", {}, [thead, tbody])])])
   );
 
   function paintHeader() {
@@ -927,14 +958,14 @@ async function initSchedulePage() {
       const count = group.games.length;
       tableContainer.appendChild(
         sectionDivider(`${group.label} · ${count} game${count === 1 ? "" : "s"}`, [
-          el("table", {}, [
+          el("div", { class: "table-scroll" }, [el("table", { class: "schedule-table" }, [
             el(
               "thead",
               {},
               [el("tr", {}, ["Date", "Time", "Team", "", "Opponent", "Location", "Score"].map((t) => el("th", { text: t })))]
             ),
             tbody,
-          ]),
+          ])]),
         ])
       );
     }
@@ -1001,6 +1032,13 @@ async function initSchedulePage() {
         cell.appendChild(el("div", { class: "calendar-event", text: label }));
       }
       grid.appendChild(cell);
+    }
+    // Pad the last week out to Saturday too - otherwise the grid's own
+    // background (which draws the 1px lines between cells) shows through
+    // as a solid block after the month's last day.
+    const trailing = (7 - ((firstOfMonth.getDay() + daysInMonth) % 7)) % 7;
+    for (let i = 0; i < trailing; i++) {
+      grid.appendChild(el("div", { class: "calendar-cell calendar-cell-empty" }));
     }
 
     calendarContainer.appendChild(el("div", { class: "calendar-header" }, [prevBtn, el("h2", { text: label }), nextBtn]));
@@ -1480,43 +1518,65 @@ function buildStandingsTable(rows, usName) {
           ]),
         ]),
         el("td", { class: "col-record nums group-start", text: row.overall_record || "0-0" }),
-        el("td", { class: "nums", text: formatPct(row.overall_record) }),
+        el("td", { class: "nums col-pct", text: formatPct(row.overall_record) }),
         el("td", { class: "nums col-optional", text: row.overall_pf || "0" }),
         el("td", { class: "nums col-optional", text: row.overall_pa || "0" }),
         el("td", { class: `nums col-diff ${diffClass(overallDiff)}`.trim(), text: overallDiff }),
         el("td", { class: "col-record nums group-start", text: row.league_record || "0-0" }),
-        el("td", { class: "nums", text: formatPct(row.league_record) }),
+        el("td", { class: "nums col-pct", text: formatPct(row.league_record) }),
         el("td", { class: `nums col-diff ${diffClass(leagueDiff)}`.trim(), title: `PF ${row.league_pf || 0} · PA ${row.league_pa || 0}`, text: leagueDiff }),
         el("td", { class: "group-start" }, [streakBadge(row.streak)]),
       ])
     );
   });
 
+  // `data-group` ties each column header to its group-row label, so
+  // syncGroupSpans() can shrink a label's colspan when CSS hides some of
+  // its columns at phone width (PF/PA, and #/badge/Pct on Regional Leagues).
   const table = el("table", { class: "standings-table standings-table--full" }, [
     el("thead", {}, [
       el("tr", { class: "standings-group-row" }, [
-        th("", { colspan: "2" }),
-        th("Overall", { colspan: "5", class: "group-start" }),
-        th("League", { colspan: "3", class: "group-start" }),
-        th("", { class: "group-start" }),
+        th("", { colspan: "2", "data-group": "school" }),
+        th("Overall", { colspan: "5", class: "group-start", "data-group": "overall" }),
+        th("League", { colspan: "3", class: "group-start", "data-group": "league" }),
+        th("", { class: "group-start", "data-group": "streak" }),
       ]),
       el("tr", {}, [
-        th("#", { class: "col-place" }),
-        th("School", { class: "col-school" }),
-        th("W-L", { class: "group-start" }),
-        th("Pct"),
-        th("PF", { class: "col-optional", title: "Points for" }),
-        th("PA", { class: "col-optional", title: "Points against" }),
-        th("Diff", { title: "Points for minus points against" }),
-        th("W-L", { class: "group-start" }),
-        th("Pct"),
-        th("Diff", { title: "Points for minus points against" }),
-        th("Streak", { class: "group-start" }),
+        th("#", { class: "col-place", "data-group": "school" }),
+        th("School", { class: "col-school", "data-group": "school" }),
+        th("W-L", { class: "group-start", "data-group": "overall" }),
+        th("Pct", { class: "col-pct", "data-group": "overall" }),
+        th("PF", { class: "col-optional", title: "Points for", "data-group": "overall" }),
+        th("PA", { class: "col-optional", title: "Points against", "data-group": "overall" }),
+        th("Diff", { title: "Points for minus points against", "data-group": "overall" }),
+        th("W-L", { class: "group-start", "data-group": "league" }),
+        th("Pct", { class: "col-pct", "data-group": "league" }),
+        th("Diff", { title: "Points for minus points against", "data-group": "league" }),
+        th("Streak", { class: "group-start", "data-group": "streak" }),
       ]),
     ]),
     tbody,
   ]);
+  // Callers attach the table synchronously, so it's in the DOM by the
+  // next frame (getComputedStyle needs the page's CSS to apply).
+  requestAnimationFrame(() => syncGroupSpans(table));
+  PHONE_QUERY.addEventListener("change", () => syncGroupSpans(table));
   return el("div", { class: "table-scroll" }, [table]);
+}
+
+const PHONE_QUERY = window.matchMedia("(max-width: 720px)");
+
+// A group label's colspan is fixed in markup, but phone-width CSS hides
+// some columns (display: none drops them from the table grid) - left
+// alone, "Overall" would then stretch over the League columns. Recount
+// each group's visible column headers and match the label to them.
+function syncGroupSpans(table) {
+  const columnHeads = [...table.querySelectorAll("thead tr:last-child th[data-group]")];
+  for (const label of table.querySelectorAll("thead tr.standings-group-row th[data-group]")) {
+    const visible = columnHeads.filter((h) => h.dataset.group === label.dataset.group && getComputedStyle(h).display !== "none").length;
+    label.style.display = visible ? "" : "none";
+    if (visible) label.colSpan = visible;
+  }
 }
 
 async function initStandingsPage() {
@@ -1593,9 +1653,11 @@ async function initRegionalLeaguesPage() {
     { label: "SRS", title: "Simple Rating System: points better than an average team on a neutral floor", value: (t) => Number(t.srs), desc: true, render: (t) => signed(t.srs), diff: true },
   ];
 
-  const tabs = el("div", { class: "filter-row" });
-  const overallPanel = el("div");
-  const leaguesPanel = el("div");
+  const tabs = el("div", { class: "filter-row regional-tabs" });
+  // .regional-leagues scopes this page's phone-width column trimming (see
+  // site.css) so the Standings page's table keeps its # column and badges.
+  const overallPanel = el("div", { class: "regional-leagues" });
+  const leaguesPanel = el("div", { class: "regional-leagues" });
   const mapPanel = el("div");
   main.appendChild(tabs);
   main.appendChild(overallPanel);
@@ -1702,6 +1764,15 @@ async function initRegionalLeaguesPage() {
   // The map is built on first view, not up front - Leaflet measures its
   // container when it initializes, and a hidden panel measures 0x0.
   let schoolMap = null;
+  // League filter for the School Map: a select in the tab row, right
+  // beside the School Map tab, shown only while that tab is open.
+  const leagueSelect = el("select", { class: "map-league-select", "aria-label": "Highlight a league on the map" }, [
+    el("option", { value: "", text: "All leagues" }),
+    ...[...leagues]
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
+      .map((l) => el("option", { value: l.league, text: l.name })),
+  ]);
+  leagueSelect.addEventListener("change", () => schoolMap?.applyFilter(leagueSelect.value || null));
   const TABS = [
     { id: "ranking", label: "Ranking", panel: overallPanel },
     { id: "leagues", label: "Leagues", panel: leaguesPanel },
@@ -1710,8 +1781,12 @@ async function initRegionalLeaguesPage() {
       label: "School Map",
       panel: mapPanel,
       onShow: () => {
-        if (!schoolMap) schoolMap = buildSchoolMap(mapPanel, teams, leagues, usName);
-        else schoolMap.invalidateSize();
+        if (!schoolMap) {
+          schoolMap = buildSchoolMap(mapPanel, teams, usName);
+          schoolMap?.applyFilter(leagueSelect.value || null);
+        } else {
+          schoolMap.map.invalidateSize();
+        }
       },
     },
   ];
@@ -1720,6 +1795,7 @@ async function initRegionalLeaguesPage() {
       tab.panel.hidden = tab.id !== id;
       tab.button.classList.toggle("active", tab.id === id);
     }
+    leagueSelect.hidden = id !== "map";
     TABS.find((tab) => tab.id === id)?.onShow?.();
   }
   for (const tab of TABS) {
@@ -1730,6 +1806,7 @@ async function initRegionalLeaguesPage() {
     });
     tabs.appendChild(tab.button);
   }
+  tabs.appendChild(leagueSelect);
   const hashTab = window.location.hash.slice(1);
   showTab(TABS.some((tab) => tab.id === hashTab) ? hashTab : "ranking");
 
@@ -1747,28 +1824,25 @@ async function initRegionalLeaguesPage() {
 // OpenStreetMap base map (Leaflet, loaded from cdnjs by
 // regional-leagues.html only). Coordinates come from the rankings
 // Lambda's cached geocode of each school's MaxPreps address. Pins are one
-// neutral ink color, with a league filter row that highlights that
-// league's schools in the site's bronze accent and dims the rest, rather
-// than ten league colors - too many hues to tell apart on a map, and the
-// Classical system is single-accent. Our own school always wears the
-// header yellow. Returns the Leaflet map (or null if Leaflet didn't load).
-function buildSchoolMap(container, teams, leagues, usName) {
+// neutral ink color; choosing a league (the select in the page's tab row,
+// via the returned applyFilter) highlights that league's schools in the
+// site's bronze accent and dims the rest, rather than ten league colors -
+// too many hues to tell apart on a map, and the Classical system is
+// single-accent. Our own school always wears the header yellow. Returns
+// { map, applyFilter }, or null if Leaflet didn't load.
+function buildSchoolMap(container, teams, usName) {
   if (typeof L === "undefined") {
     container.appendChild(el("p", { class: "empty-state", text: "The map couldn't be loaded." }));
     return null;
   }
   const located = teams.filter((t) => t.lat != null && t.lng != null);
   const isUs = (t) => usName && (t.name || "").toLowerCase() === usName;
-  const sortedLeagues = [...leagues].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-
-  const filterRow = el("div", { class: "filter-row" });
   const mapEl = el("div", { class: "school-map", role: "region", "aria-label": "Map of schools in the region" });
   const legend = el("div", { class: "school-map-legend" }, [
     el("span", {}, [el("span", { class: "map-key map-key--us" }), el("span", { text: "Our school" })]),
     el("span", {}, [el("span", { class: "map-key map-key--selected" }), el("span", { text: "Selected league" })]),
     el("span", {}, [el("span", { class: "map-key" }), el("span", { text: "Other schools" })]),
   ]);
-  container.appendChild(filterRow);
   container.appendChild(mapEl);
   container.appendChild(legend);
 
@@ -1833,16 +1907,6 @@ function buildSchoolMap(container, teams, leagues, usName) {
     if (inView.length) map.fitBounds(L.latLngBounds(inView), { padding: [30, 30], maxZoom: 12 });
   }
 
-  const buttons = [{ label: "All", league: null }, ...sortedLeagues.map((l) => ({ label: l.name, league: l.league }))];
-  for (const { label, league } of buttons) {
-    const btn = el("button", { type: "button", text: label, ...(league ? {} : { class: "active" }) });
-    btn.addEventListener("click", () => {
-      filterRow.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      applyFilter(league);
-    });
-    filterRow.appendChild(btn);
-  }
   applyFilter(null);
 
   const missing = teams.length - located.length;
@@ -1851,5 +1915,5 @@ function buildSchoolMap(container, teams, leagues, usName) {
       el("p", { class: "standings-footnote", text: `${missing} school${missing === 1 ? "" : "s"} couldn't be placed on the map.` })
     );
   }
-  return map;
+  return { map, applyFilter };
 }

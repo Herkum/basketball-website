@@ -55,7 +55,18 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   (Schedule, a roster's Players, Standings, Regional Leagues) sit in a
   `.table-scroll` wrapper so they scroll inside their own box rather than
   widening the page; justified paragraphs fall back to left-aligned. Any
-  new page-level `<table>` should get the same wrapper.
+  new page-level `<table>` should get the same wrapper. Regional Leagues
+  goes further so its tables fit outright (scoped by a `.regional-leagues`
+  class on its Ranking/Leagues panels, so the Standings page is
+  unaffected): no `#` column or school badges, no League column on
+  Ranking, no Pct columns (`.col-pct`) on the per-league tables, and
+  slightly smaller school names/tighter cells so names stay on one line
+  (fits every league down to a 375px phone; narrower ones scroll that
+  table a little). Hidden columns would
+  otherwise leave `buildStandingsTable`'s "Overall"/"League" group labels
+  spanning the wrong columns, so `syncGroupSpans()` recounts each label's
+  visible columns (`data-group`) on build and whenever `PHONE_QUERY`
+  flips.
 - **Public site visual style**: follows the real "Classical" design
   system (`designer/classical-dcb8c44c-cb34-4501-a2e9-cf858d85b40d/`,
   see its `readme.md` for the full spec) rather than an earlier guess —
@@ -211,7 +222,9 @@ Admin SPA         --> Lambda (presigned URL) --> browser uploads image directly 
   since Leaflet measures its container on init and a hidden panel is 0×0;
   the map must also have a view (`fitBounds`) *before* any marker is added
   or styled, or Leaflet throws on `bringToFront`. Pins are deliberately one
-  neutral ink color plus a league filter row that highlights the chosen
+  neutral ink color plus a league picker (a `<select>` in the page's tab
+  row, beside the School Map button and shown only on that tab — it drives
+  `buildSchoolMap()`'s returned `applyFilter`) that highlights the chosen
   league in the bronze accent and dims the rest — not ten league hues
   (too many to tell apart on a map, and the Classical system is
   single-accent); our school is always the header yellow with a dark
