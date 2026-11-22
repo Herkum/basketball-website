@@ -314,12 +314,14 @@ resource "aws_lambda_function_event_invoke_config" "rankings" {
   maximum_retry_attempts = 0
 }
 
-# Daily refresh at 12:00 UTC (4am PST / 5am PDT) - after the previous
-# night's scores have been entered on MaxPreps. The event has no
-# requestContext, which the handler treats as "refresh".
+# Daily refresh at 17:30 UTC (9:30am PST / 10:30am PDT) - just after the
+# handler's SCORES_IN_BY_HOUR (9am Pacific the morning after a game), when
+# last night's scores should all be entered on MaxPreps. The event has no
+# requestContext, which the handler treats as "refresh"; the scrape cache
+# limits it to the teams that actually played.
 resource "aws_cloudwatch_event_rule" "rankings_refresh" {
   name                = "${var.project_name}-rankings-refresh"
-  schedule_expression = "cron(0 12 * * ? *)"
+  schedule_expression = "cron(30 17 * * ? *)"
 }
 
 resource "aws_cloudwatch_event_target" "rankings_refresh" {

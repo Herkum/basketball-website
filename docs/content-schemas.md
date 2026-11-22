@@ -98,16 +98,18 @@ lists live as constants in `admin/app.js`.
   — `link` is admin-set, never scraped). The rows are written by the
   **Rankings refresh**, not scraped separately: our league is the
   `standings: True` entry in `TRACKED_LEAGUES`, and `_write_standings()`
-  saves its already-parsed table here right after the league pages are
-  scraped (before the long rating stage, so a later failure doesn't block
-  it), carrying each school's `link` forward by case-insensitive name. A
+  saves its parsed table here whenever our league's page is actually
+  re-fetched (with the scrape cache, that's when one of its teams has a
+  new result, or weekly), carrying each school's `link` forward by
+  case-insensitive name. A
   table that parses as zero rows keeps the previous standings and adds a
   warning. `standings/handler.py` only serves and edits the row: `GET`
   (public) and `PUT` (JWT, `Edit Season` — the admin's Add/Edit/Delete
   school dialogs, saving `rows` as given; the next refresh overwrites
   everything but `link`). No scrape route, and a direct invoke is
   refused.
-- **`Rankings`** (PK `cache_id`, four singleton rows): the site's one
+- **`Rankings`** (PK `cache_id`; four singleton rows plus scrape-cache
+  rows): the site's one
   MaxPreps scrape — regional SRS ratings, plus our league's table written
   to `Standings` (above). Ratings span `TRACKED_LEAGUES` in
   `rankings/handler.py` (Marmonte, Coastal Canyon, Channel, Citrus Coast,
@@ -131,9 +133,46 @@ lists live as constants in `admin/app.js`.
     School, city", then the ZIP centroid. Unplaceable schools are left off
     the map and noted in `warnings`.
   - **`"refresh"`**: the refresh lock (`started_at`), below.
-  - **Leagues** are found via one seed school each, not a hardcoded league
-    URL, so a new season needs no code change; a seed that moves to another
-    league is reported in `warnings`.
+  - **Scrape cache** — so MaxPreps is only re-fetched when something can
+    have changed: `"league_paths"` (fallback seed-school lookups, cached
+    for the season — see Leagues below), `"league#<slug>"` (a league's
+    parsed table),
+    and `"sched#<team path>"` (a team's parsed games, every scheduled
+    contest's date, and its address/colors — static, they just ride
+    along). A schedule is re-fetched once a listed game's score should be
+    in — 9am Pacific the morning after the game (games can run past 10pm,
+    and scores are entered after) — but isn't on the cached copy, for up
+    to 5 days (re-tried at most every 6 hours once overdue) — which
+    also picks up moved/added games, since the whole page is re-read. A
+    schedule with no upcoming games left is re-checked weekly, to catch
+    games added after a team's last known one (CIF playoffs, a late
+    tournament) — until its season is over (`_season_over()`), after
+    which it's never fetched again: once the playoffs have begun (the
+    earliest MaxPreps `**` game on any cached schedule — scheduled
+    contests carry a `kind` for this), a team whose last game was
+    regular-season and whose page was fetched since then didn't make
+    them, and a team whose last game was a playoff loss is done after
+    one more check 7+ days later (CIF State regionals take some
+    section-playoff losers, whose state game is added days later);
+    a league table when a member has a new result, or weekly, or when
+    its configured path changes. The admin's button runs a "manual"
+    refresh: any game dated today or earlier counts, so a score entered
+    tonight shows up tonight (but nothing fetched in the last 10 minutes
+    is re-fetched). A failed fetch falls back to the cached copy with a
+    warning and still counts toward the "more than half failed → refuse
+    to overwrite" check; a page that comes back with no games is treated
+    as failed rather than saved over good data. A direct invoke with
+    `{"full": true}` ignores the cache. Each run's `scrape_stats`
+    (`pages_fetched`, schedules fetched vs. from cache, leagues fetched)
+    is saved on `"current"` — a warm run with no new results fetches 0
+    pages, versus ~130 (late season, a few hundred) without the cache.
+  - **Leagues**: each `TRACKED_LEAGUES` entry has a `path` — its MaxPreps
+    standings page for the season, configuration updated once a year
+    (the `leagueid` can't be derived, but never changes mid-season), so
+    finding the leagues costs no requests. A path for another season (or
+    none) falls back to a lookup through the entry's `seed` school
+    (cached for the season) with a warning to update the path; a seed
+    that has moved to another league is also reported in `warnings`.
   - **SRS**: least-squares, each margin capped at 15, home court fixed at
     3 pts (none for neutral games — tournaments, or both schedules
     disagreeing on home/away), plus one phantom 0-margin game per team as
@@ -148,15 +187,25 @@ lists live as constants in `admin/app.js`.
     schedule scrapes fail raises rather than overwrite the cache.
   - **Refresh**: `GET /rankings` (public) serves the cache plus
     `refresh_started_at` while a run is live. Refreshes come from the daily
-    EventBridge rule (`cron(0 12 * * ? *)`), `aws lambda invoke
+    EventBridge rule (`cron(30 17 * * ? *)` — 9:30am PST / 10:30am PDT,
+    just after the 9am "scores are in" mark), `aws lambda invoke
     --function-name basketball-website-rankings --payload '{}' out.json`,
     or the admin's "Refresh from MaxPreps" button (League Standings tab),
     which also updates `Standings`. A
     scrape takes minutes — past API Gateway's 30s — so `POST /rankings`
     (JWT, `Edit Season`) re-invokes the Lambda asynchronously and returns
     202. Every refresh holds the `"refresh"` lock (conditional put,
-    cleared in a `finally`, stale after 16 min), so a second POST gets 409;
-    the admin polls until it clears. Async retries are off
+    cleared in a `finally`, stale after 16 min), so runs never overlap: a
+    second POST gets 409, and a scheduled or CLI run (or a CLI's silent
+    retry of a long invoke) that finds a live lock skips with
+    `{"skipped": true}`. Only the run the admin's POST starts
+    (`source: "admin"`) proceeds under the lock the POST already took.
+    The admin polls until it clears. Requests to MaxPreps are spaced 5s
+    apart (`FETCH_DELAY_SECONDS`) to keep the load light — fine with the
+    cache's handful of pages, but a run that must fetch everything
+    (empty cache, `{"full": true}`) can't finish late-season within the
+    900s timeout; outside opponents it can't reach fall back to cached
+    copies and catch up on later runs. Async retries are off
     (`maximum_retry_attempts = 0`) so a failure doesn't re-scrape twice.
 - **`AdminAllowlist`** (PK `email`; admin Administration → Users,
   `usersMeta()`/`users` Lambda): `first_name`, `last_name`, `permissions`

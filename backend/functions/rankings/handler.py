@@ -24,7 +24,7 @@ import re
 import time
 import urllib.parse
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import boto3
@@ -46,24 +46,78 @@ REQUIRED_PERMISSION = "Edit Season"
 REFRESH_LOCK_STALE_SECONDS = 16 * 60
 MAXPREPS = "https://www.maxpreps.com"
 
-# One member school per tracked league. Each refresh follows that school's
-# standings page to its *current-season* league page and takes the league's
-# membership from there, so a new season (or a realignment) needs no code
-# change as long as the seed school is still in a league with that slug.
-# `league` is the slug we expect - a mismatch is reported in `warnings`
-# rather than silently tracking the wrong league. `standings: True` marks
-# our own league: its table is also written to the League Standings cache.
+# The tracked leagues. `path` is the league's MaxPreps standings page for
+# the current season - configuration, updated once a year (the leagueid
+# can't be derived, but it never changes mid-season), so finding the
+# leagues costs no MaxPreps requests. If a path is for another season (or
+# missing), that league falls back to a lookup through its `seed` school's
+# standings page - cached for the season - and a warning says to update
+# the path. `league` is the slug we expect; a mismatch is reported in
+# `warnings` rather than silently tracking the wrong league.
+# `standings: True` marks our own league: its table is also written to the
+# League Standings cache.
 TRACKED_LEAGUES = [
-    {"league": "marmonte", "section": "Southern", "seed": "/ca/newbury-park/newbury-park-panthers/", "standings": True},
-    {"league": "coastal-canyon", "section": "Southern", "seed": "/ca/simi-valley/simi-valley-pioneers/"},
-    {"league": "channel", "section": "Southern", "seed": "/ca/ventura/ventura-cougars/"},
-    {"league": "citrus-coast", "section": "Southern", "seed": "/ca/fillmore/fillmore-flashes/"},
-    {"league": "tri-valley", "section": "Southern", "seed": "/ca/ventura/st-bonaventure-seraphs/"},
-    {"league": "frontier", "section": "Southern", "seed": "/ca/santa-barbara/laguna-blanca-owls/"},
-    {"league": "mission", "section": "Southern", "seed": "/ca/chatsworth/sierra-canyon-trailblazers/"},
-    {"league": "gold-coast", "section": "Southern", "seed": "/ca/calabasas/viewpoint-patriots/"},
-    {"league": "west-valley", "section": "LA City", "seed": "/ca/chatsworth/chatsworth-charter-chancellors/"},
-    {"league": "valley-mission", "section": "LA City", "seed": "/ca/canoga-park/canoga-park-hunters/"},
+    {
+        "league": "marmonte",
+        "section": "Southern",
+        "path": "/ca/basketball/26-27/league/marmonte/?leagueid=2fda6028-d8f2-4f0d-8976-34ff5fb10837",
+        "seed": "/ca/newbury-park/newbury-park-panthers/",
+        "standings": True,
+    },
+    {
+        "league": "coastal-canyon",
+        "section": "Southern",
+        "path": "/ca/basketball/26-27/league/coastal-canyon/?leagueid=870f4db5-dd65-4b3e-9ab6-e62c6149fec4",
+        "seed": "/ca/simi-valley/simi-valley-pioneers/",
+    },
+    {
+        "league": "channel",
+        "section": "Southern",
+        "path": "/ca/basketball/26-27/league/channel/?leagueid=d70ed787-1723-4efe-97b3-e3332ff86d99",
+        "seed": "/ca/ventura/ventura-cougars/",
+    },
+    {
+        "league": "citrus-coast",
+        "section": "Southern",
+        "path": "/ca/basketball/26-27/league/citrus-coast/?leagueid=4ffeabb6-00b5-498b-a554-78899f5a9ad5",
+        "seed": "/ca/fillmore/fillmore-flashes/",
+    },
+    {
+        "league": "tri-valley",
+        "section": "Southern",
+        "path": "/ca/basketball/26-27/league/tri-valley/?leagueid=d64e1d2c-0762-4473-89f7-9cfed9188547",
+        "seed": "/ca/ventura/st-bonaventure-seraphs/",
+    },
+    {
+        "league": "frontier",
+        "section": "Southern",
+        "path": "/ca/basketball/26-27/league/frontier/?leagueid=db644ceb-5f36-4099-a10b-c4e0ecfa29fb",
+        "seed": "/ca/santa-barbara/laguna-blanca-owls/",
+    },
+    {
+        "league": "mission",
+        "section": "Southern",
+        "path": "/ca/basketball/26-27/league/mission/?leagueid=eb09aa39-754a-44f2-bc3e-19eebb10655a",
+        "seed": "/ca/chatsworth/sierra-canyon-trailblazers/",
+    },
+    {
+        "league": "gold-coast",
+        "section": "Southern",
+        "path": "/ca/basketball/26-27/league/gold-coast/?leagueid=9fc3ae48-02f6-42ee-933d-d76028952c5e",
+        "seed": "/ca/calabasas/viewpoint-patriots/",
+    },
+    {
+        "league": "west-valley",
+        "section": "LA City",
+        "path": "/ca/basketball/26-27/league/west-valley/?leagueid=bb3f8ff0-e3d4-40e5-b356-56b84dc60b17",
+        "seed": "/ca/chatsworth/chatsworth-charter-chancellors/",
+    },
+    {
+        "league": "valley-mission",
+        "section": "LA City",
+        "path": "/ca/basketball/26-27/league/valley-mission/?leagueid=cdeae5c3-a904-440c-b25b-1eb62de35321",
+        "seed": "/ca/canoga-park/canoga-park-hunters/",
+    },
 ]
 
 # Margins beyond this count as this many points, so running up the score
@@ -77,7 +131,46 @@ HOME_COURT_POINTS = 3.0
 # still disconnected early in the season, and shrinks small samples toward 0.
 SRS_PRIOR_GAMES = 1.0
 
-FETCH_DELAY_SECONDS = 0.3
+# Pause before every MaxPreps request - deliberately slow, to keep the load
+# on MaxPreps light. With the scrape cache a normal run fetches only a
+# handful of pages; a run that has to fetch everything (an empty cache, a
+# {"full": true} invoke) is bounded by the deadline below - outside
+# opponents' schedules it can't reach in time fall back to their cached
+# copies and are picked up on later runs.
+FETCH_DELAY_SECONDS = 5
+
+# Scrape cache - MaxPreps is only re-fetched when something can have
+# changed (see _schedule_due/_league_due). A finished game's score never
+# changes, so each team's parsed schedule lives in its own "sched#<team>"
+# row and a league's table in a "league#<slug>" row:
+#   - a schedule is re-fetched once a listed game's score should be in
+#     (SCORES_IN_BY_HOUR the morning after the game) but isn't on the
+#     cached copy, for up to PENDING_SCORE_DAYS - scores are often entered
+#     a day or two late - which also picks up moved/added games; a
+#     schedule with no upcoming games left is re-checked weekly (games
+#     added after a team's last known one, e.g. playoffs) - until its
+#     season is over (didn't make the playoffs, or lost in them; see
+#     _season_over), after which it's never fetched again;
+#   - a league table is re-fetched when one of its teams has a new result,
+#     or weekly;
+#   - once a score is overdue, the page is re-tried at most every
+#     LATE_SCORE_RETRY_SECONDS;
+#   - an admin-started ("manual") refresh treats any game dated today or
+#     earlier as due - so a score entered tonight shows up tonight - but
+#     never re-fetches a page fetched in the last MANUAL_MIN_SECONDS;
+#   - league locations are configuration (TRACKED_LEAGUES `path`), and
+#     addresses/colors ride along on the schedule row (static).
+# A direct invoke with {"full": true} ignores all of it.
+SCHEDULE_RECHECK_DAYS = 7
+LEAGUE_RECHECK_DAYS = 7
+PENDING_SCORE_DAYS = 5
+LATE_SCORE_RETRY_SECONDS = 6 * 3600
+MANUAL_MIN_SECONDS = 10 * 60
+# Games are dated in local (Pacific) time; some run past 10pm and scores
+# are entered after that, so a game's score is only expected by this hour
+# (Pacific) the next morning. The daily refresh runs just after it.
+SCORES_IN_BY_HOUR = 9
+PACIFIC_OFFSET_HOURS = -8
 
 # Outside opponents (teams a tracked team played that aren't in a tracked
 # league) get their own schedules scraped too, one level out, so they're
@@ -122,7 +215,12 @@ def _http_get(url, headers=None):
         return resp.read().decode("utf-8", errors="replace")
 
 
+_fetch_count = 0
+
+
 def _fetch(path):
+    global _fetch_count
+    _fetch_count += 1
     time.sleep(FETCH_DELAY_SECONDS)
     return _http_get(MAXPREPS + path)
 
@@ -192,6 +290,148 @@ def scrape_league(league_path):
     return members
 
 
+def _now_pacific():
+    return datetime.utcnow() + timedelta(hours=PACIFIC_OFFSET_HOURS)
+
+
+def _season_label(today):
+    """MaxPreps' season slug, e.g. "26-27" - seasons run Nov-Mar, so July
+    onward is the season starting that year."""
+    y = today.year % 100
+    return f"{y:02d}-{(y + 1) % 100:02d}" if today.month >= 7 else f"{(y - 1) % 100:02d}-{y:02d}"
+
+
+def _load_caches():
+    """Every scrape-cache row ("league_paths", "league#*", "sched#*"),
+    keyed by cache_id - one scan of this small table."""
+    caches, kwargs = {}, {}
+    while True:
+        resp = table.scan(**kwargs)
+        for it in resp["Items"]:
+            cid = it["cache_id"]
+            if cid == "league_paths" or cid.startswith(("league#", "sched#")):
+                caches[cid] = it
+        if "LastEvaluatedKey" not in resp:
+            return caches
+        kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+
+
+def _cached_schedule(cache):
+    """A "sched#" row back to scrape_schedule's shape (DynamoDB hands
+    numbers back as Decimal)."""
+    views = [
+        {**v, "points_for": int(v["points_for"]), "points_against": int(v["points_against"]), "away": bool(v["away"])}
+        for v in cache.get("views", [])
+    ]
+    return views, cache.get("address"), dict(cache.get("colors") or {}), list(cache.get("scheduled", []))
+
+
+def _save_schedule(team_id, views, address, colors, scheduled):
+    table.put_item(
+        Item={
+            "cache_id": f"sched#{team_id}",
+            "fetched_on": _now_pacific().date().isoformat(),
+            "fetched_at": int(time.time()),
+            "views": views,
+            "address": address,
+            "colors": colors,
+            "scheduled": scheduled,
+        }
+    )
+
+
+def _playoff_start(caches):
+    """The earliest playoff date (MaxPreps' "**" games) on any cached
+    schedule - None until the playoffs begin."""
+    dates = [
+        c["date"]
+        for cid, cache in caches.items()
+        if cid.startswith("sched#")
+        for c in list(cache.get("scheduled", [])) + list(cache.get("views", []))
+        if c.get("kind") == "playoff"
+    ]
+    return date.fromisoformat(min(dates)) if dates else None
+
+
+def _season_over(cache, playoff_start):
+    """Once the playoffs have begun, a team with nothing left to play is
+    done for the season - never fetched again - when either:
+      - its last game was a regular-season game and its page has been
+        fetched since the playoffs began (so a newly added first playoff
+        game would have shown up): it didn't make the playoffs; or
+      - its last game was a playoff loss and its page has been re-checked
+        at least SCHEDULE_RECHECK_DAYS after it - one more look because CIF
+        State regionals take some section-playoff losers (runners-up),
+        whose state game gets added a few days after the section ends."""
+    if not playoff_start:
+        return False
+    fetched_on = date.fromisoformat(cache["fetched_on"])
+    views = sorted(cache.get("views", []), key=lambda v: v["date"])
+    if not views or views[-1].get("kind") != "playoff":
+        return fetched_on > playoff_start
+    last = views[-1]
+    lost = int(last["points_for"]) < int(last["points_against"])
+    return lost and (fetched_on - date.fromisoformat(last["date"])).days >= SCHEDULE_RECHECK_DAYS
+
+
+def _schedule_due(cache, now, full, manual=False, playoff_start=None):
+    """Whether a team's schedule page needs fetching again (see the scrape
+    cache notes at the top). `now` is naive Pacific time."""
+    if full or not cache:
+        return True
+    today = now.date()
+    # Games added after a team's last known game (CIF playoffs, a late
+    # tournament) are invisible until something re-fetches the page. A team
+    # with upcoming games gets re-fetched anyway as each one finishes, so
+    # only a schedule with nothing left to play is re-checked weekly.
+    if (today - date.fromisoformat(cache["fetched_on"])).days >= SCHEDULE_RECHECK_DAYS:
+        has_upcoming = any(date.fromisoformat(c["date"]) >= today for c in cache.get("scheduled", []))
+        if not has_upcoming and not _season_over(cache, playoff_start):
+            return True
+    fetched_at = int(cache.get("fetched_at", 0))
+    fetched = datetime.utcfromtimestamp(fetched_at) + timedelta(hours=PACIFIC_OFFSET_HOURS)
+    since_fetch = time.time() - fetched_at
+    done = {v["contest_id"] for v in cache.get("views", [])}
+    for c in cache.get("scheduled", []):
+        if c["contest_id"] in done:
+            continue
+        d = date.fromisoformat(c["date"])
+        if (today - d).days > PENDING_SCORE_DAYS or d > today:
+            continue
+        if manual:
+            if since_fetch >= MANUAL_MIN_SECONDS:
+                return True
+            continue
+        scores_due = datetime(d.year, d.month, d.day) + timedelta(days=1, hours=SCORES_IN_BY_HOUR)
+        if now < scores_due:
+            continue
+        # Not fetched since the score became due, or still missing and the
+        # last try is old enough to try again.
+        if fetched < scores_due or since_fetch >= LATE_SCORE_RETRY_SECONDS:
+            return True
+    return False
+
+
+def _save_league(slug, path, members):
+    table.put_item(
+        Item={
+            "cache_id": f"league#{slug}",
+            "path": path,
+            "fetched_on": _now_pacific().date().isoformat(),
+            "fetched_at": int(time.time()),
+            "members": members,
+        }
+    )
+
+
+def _league_due(cache, league_path, member_ids, teams_with_new_games, today, full):
+    if full or not cache or cache.get("path") != league_path:
+        return True
+    if (today - date.fromisoformat(cache["fetched_on"])).days >= LEAGUE_RECHECK_DAYS:
+        return True
+    return any(t in teams_with_new_games for t in member_ids)
+
+
 def _write_standings(members, source_url, warnings):
     """Writes our league's table to the League Standings cache (the
     `standings` table's "current" row, same row shape it always had).
@@ -230,6 +470,9 @@ def _league_display_name(slug):
 def scrape_schedule(team_id):
     """Parses a team's varsity schedule page. Each game row looks like:
       <a ... href="/ca/basketball/game/<slug>/11-16-2026/?c=<contest uuid>">
+    (the month and day aren't zero-padded - "12-1-2026", "1-5-2027" - and
+    the opponent link uses its own state, e.g. "/az/gilbert/...", for an
+    out-of-state game; both have to match or the game is silently dropped)
       <span class="hat">vs|@</span> ... <span class="name">Opponent***</span>
       <span class="result W|L">W</span> <span class="score">55-30</span>
     The score is always winner-first regardless of W/L. Trailing asterisks
@@ -270,11 +513,25 @@ def scrape_schedule(team_id):
             if hex_match:
                 colors[key] = "#" + hex_match.group(1).lower()
     games = []
+    # Every listed contest, played or not - the scrape cache uses the dates
+    # to know when this schedule next needs re-checking.
+    scheduled = []
     for row_html in re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S):
-        contest = re.search(r"/(\d{2})-(\d{2})-(\d{4})/\?c=([a-f0-9-]+)", row_html)
+        contest = re.search(r"/(\d{1,2})-(\d{1,2})-(\d{4})/\?c=([a-f0-9-]+)", row_html)
+        if contest:
+            cm, cd, cy, cid = contest.groups()
+            listed_name = re.search(r'class="name">([^<]*)</span>', row_html)
+            listed_stars = len(listed_name.group(1)) - len(listed_name.group(1).rstrip("*")) if listed_name else 0
+            scheduled.append(
+                {
+                    "date": f"{cy}-{int(cm):02d}-{int(cd):02d}",
+                    "contest_id": cid,
+                    "kind": {1: "league", 2: "playoff", 3: "tournament"}.get(listed_stars, "nonleague"),
+                }
+            )
         result = re.search(r'class="result ([WL])">[WL]</span>\s*<span class="score">(\d+)-(\d+)', row_html)
         opponent = re.search(
-            r'href="(/ca/[a-z0-9-]+/[a-z0-9-]+/)basketball/"><span class="hat">([^<]*)</span>.*?class="name">([^<]*)</span>',
+            r'href="(/[a-z]{2}/[a-z0-9-]+/[a-z0-9-]+/)basketball/"><span class="hat">([^<]*)</span>.*?class="name">([^<]*)</span>',
             row_html,
             re.S,
         )
@@ -287,7 +544,7 @@ def scrape_schedule(team_id):
         games.append(
             {
                 "contest_id": contest_id,
-                "date": f"{year}-{month}-{day}",
+                "date": f"{year}-{int(month):02d}-{int(day):02d}",
                 "opponent_id": opponent.group(1),
                 "opponent_name": name.rstrip("*").strip(),
                 "away": opponent.group(2).strip() == "@",
@@ -296,7 +553,9 @@ def scrape_schedule(team_id):
                 "points_against": low if outcome == "W" else high,
             }
         )
-    return games, address, colors
+    # A contest can appear in more than one row (e.g. a tournament block).
+    scheduled = list({c["contest_id"]: c for c in scheduled}.values())
+    return games, address, colors, scheduled
 
 
 def _address_line(address):
@@ -478,57 +737,171 @@ def _dec(value, places=2):
 # --- refresh ---
 
 
-def _refresh(deadline):
+def _refresh(deadline, full=False, manual=False):
     """`deadline` is a time.time() after which no new outside-opponent
-    schedule scrapes start (see OUTSIDE_SCRAPE_RESERVE_SECONDS)."""
+    schedule scrapes start (see OUTSIDE_SCRAPE_RESERVE_SECONDS). `full`
+    ignores the scrape cache and re-fetches everything; `manual` (an
+    admin-started refresh) checks every game dated today or earlier."""
+    global _fetch_count
+    _fetch_count = 0
+    now = _now_pacific()
+    today = now.date()
     warnings = []
-    tracked = {}
-    leagues = []
+    caches = _load_caches()
+    playoff_start = _playoff_start(caches)
+
+    # League locations: the configured `path` when it's for this season;
+    # otherwise one seed-school lookup, cached for the season, plus a
+    # warning to update the path.
+    season = _season_label(today)
+    paths_row = caches.get("league_paths") or {}
+    paths = dict(paths_row.get("paths") or {}) if paths_row.get("season") == season and not full else {}
+    paths_changed = False
+    league_specs = []
     for spec in TRACKED_LEAGUES:
+        configured = spec.get("path") or ""
+        if f"/{season}/league/" in configured:
+            league_specs.append((spec, configured, spec["league"]))
+            continue
+        warnings.append(f"league {spec['league']}: no configured path for {season} - looked up via its seed school; update TRACKED_LEAGUES")
+        hit = paths.get(spec["seed"])
+        if not hit:
+            try:
+                league_path, slug = find_league_path(spec["seed"])
+            except Exception as exc:
+                warnings.append(f"league {spec['league']}: {exc}")
+                continue
+            hit = {"path": league_path, "slug": slug}
+            paths[spec["seed"]] = hit
+            paths_changed = True
+        if hit["slug"] != spec["league"]:
+            warnings.append(f"seed {spec['seed']} is now in '{hit['slug']}', expected '{spec['league']}'")
+        league_specs.append((spec, hit["path"], hit["slug"]))
+    if paths_changed:
+        table.put_item(Item={"cache_id": "league_paths", "season": season, "updated_at": int(time.time()), "paths": paths})
+
+    # League membership + MaxPreps' table numbers: from cache when we have
+    # it (re-fetched below if a member has a new result).
+    league_members = {}
+    leagues_fetched = set()
+    for spec, league_path, slug in league_specs:
+        cache = caches.get(f"league#{slug}")
+        # Only trust a cached table that came from this league's current
+        # page (a corrected leagueid or a new season's path means refetch).
+        if cache and not full and cache.get("path") == league_path:
+            league_members[slug] = [dict(m) for m in cache.get("members", [])]
+            continue
         try:
-            league_path, slug = find_league_path(spec["seed"])
-            if slug != spec["league"]:
-                warnings.append(f"seed {spec['seed']} is now in '{slug}', expected '{spec['league']}'")
-            members = scrape_league(league_path)
+            league_members[slug] = scrape_league(league_path)
         except Exception as exc:
             warnings.append(f"league {spec['league']}: {exc}")
             continue
-        # Written now, not at the end, so our League Standings update even
-        # if the long schedule/rating stage below fails.
-        if spec.get("standings"):
-            _write_standings(members, MAXPREPS + league_path, warnings)
+        _save_league(slug, league_path, league_members[slug])
+        leagues_fetched.add(slug)
+
+    tracked = {}
+    leagues = []
+    for spec, league_path, slug in league_specs:
+        if slug not in league_members:
+            continue
         leagues.append(
             {"league": slug, "name": _league_display_name(slug), "section": spec["section"], "url": MAXPREPS + league_path}
         )
-        for member in members:
+        for member in league_members[slug]:
             tracked.setdefault(member["team_id"], {**member, "league": slug, "section": spec["section"]})
 
     if not tracked:
         raise RuntimeError("no tracked teams found - every league scrape failed: " + "; ".join(warnings))
 
+    # Tracked teams' schedules, re-fetched only when due. A failed fetch
+    # falls back to the cached copy.
+    def fetch_schedule(team_id, cache):
+        """Fetches and caches a schedule. Raises on a failed fetch, and
+        treats an empty page as one when the cache had contests (an error
+        or consent page, or a markup change) - so it's never saved over
+        good data and frozen there until the weekly recheck."""
+        views, address, colors_, scheduled = scrape_schedule(team_id)
+        if not scheduled and cache and cache.get("scheduled"):
+            raise ValueError("schedule page came back with no games - kept the cached copy")
+        _save_schedule(team_id, views, address, colors_, scheduled)
+        return views, address, colors_
+
+    def load_schedule(team_id):
+        """(views, address, colors, fetched?, has_new_games?, failed?)."""
+        cache = caches.get(f"sched#{team_id}")
+        if not _schedule_due(cache, now, full, manual, playoff_start):
+            views, address, colors_, _ = _cached_schedule(cache)
+            return views, address, colors_, False, False, False
+        try:
+            views, address, colors_ = fetch_schedule(team_id, cache)
+        except Exception as exc:
+            if not cache:
+                raise
+            warnings.append(f"schedule {team_id}: {exc} - using the cached copy")
+            views, address, colors_, _ = _cached_schedule(cache)
+            return views, address, colors_, False, False, True
+        old = {v["contest_id"] for v in (cache or {}).get("views", [])}
+        return views, address, colors_, True, any(v["contest_id"] not in old for v in views), False
+
     views_by_team = {}
     addresses = {}
     colors = {}
-    failures = 0
+    teams_with_new_games = set()
+    stats_fetched = stats_cached = failures = 0
     for team_id in tracked:
         try:
-            views_by_team[team_id], address, colors[team_id] = scrape_schedule(team_id)
-            if address and address["street"]:
-                addresses[team_id] = address
+            views, address, colors[team_id], fetched, new_games, failed = load_schedule(team_id)
         except Exception as exc:
             failures += 1
             warnings.append(f"schedule {team_id}: {exc}")
+            continue
+        # A fallback to the cached copy still counts toward the
+        # mostly-failed check below (e.g. MaxPreps blocking us).
+        failures += failed
+        views_by_team[team_id] = views
+        if address and address.get("street"):
+            addresses[team_id] = address
+        stats_fetched += fetched
+        stats_cached += not fetched
+        if new_games:
+            teams_with_new_games.add(team_id)
     # Refuse to overwrite a good cache with a mostly-failed scrape.
     if failures > len(tracked) / 2:
         raise RuntimeError(f"{failures}/{len(tracked)} schedule scrapes failed: " + "; ".join(warnings[-5:]))
+
+    # Cached league tables are re-fetched only when a member has a new
+    # result (or weekly), refreshing MaxPreps' own table numbers.
+    for spec, league_path, slug in league_specs:
+        if slug in leagues_fetched or slug not in league_members:
+            continue
+        member_ids = [m["team_id"] for m in league_members[slug]]
+        if not _league_due(caches.get(f"league#{slug}"), league_path, member_ids, teams_with_new_games, today, full):
+            continue
+        try:
+            members = scrape_league(league_path)
+        except Exception as exc:
+            warnings.append(f"league {spec['league']}: {exc}")
+            continue
+        _save_league(slug, league_path, members)
+        leagues_fetched.add(slug)
+        league_members[slug] = members
+        for member in members:
+            if member["team_id"] in tracked:
+                tracked[member["team_id"]].update(member)
+
+    # Our League Standings follow our league's table - rewritten only when
+    # it was actually re-fetched this run.
+    for spec, league_path, slug in league_specs:
+        if spec.get("standings") and slug in leagues_fetched:
+            _write_standings(league_members[slug], MAXPREPS + league_path, warnings)
 
     # Outside opponents, one level out: their schedules give them real
     # ratings (and so give tracked teams real strength-of-schedule credit)
     # instead of the prior's "assume average". Their own opponents - two
     # levels out - enter the solve too but aren't scraped further. Outside
-    # teams are rated, never ranked or returned. A failed outside scrape is
-    # only a warning: that team just falls back to being seen from its
-    # tracked opponents' schedules, as before.
+    # teams are rated, never ranked or returned. Same cache rules; a failed
+    # or skipped fetch falls back to the cached copy, else that team is
+    # just seen from its tracked opponents' schedules.
     connections = {}
     for views in views_by_team.values():
         for v in views:
@@ -537,13 +910,25 @@ def _refresh(deadline):
     outside = sorted(connections, key=lambda t: (-connections[t], t))
     skipped = 0
     for team_id in outside:
+        cache = caches.get(f"sched#{team_id}")
+        if not _schedule_due(cache, now, full, manual, playoff_start):
+            views_by_team[team_id] = _cached_schedule(cache)[0]
+            stats_cached += 1
+            continue
         if time.time() > deadline:
             skipped += 1
+            if cache:
+                views_by_team[team_id] = _cached_schedule(cache)[0]
             continue
         try:
-            views_by_team[team_id], _, _ = scrape_schedule(team_id)
+            views = fetch_schedule(team_id, cache)[0]
         except Exception as exc:
             warnings.append(f"outside schedule {team_id}: {exc}")
+            if cache:
+                views_by_team[team_id] = _cached_schedule(cache)[0]
+            continue
+        views_by_team[team_id] = views
+        stats_fetched += 1
     if skipped:
         warnings.append(f"ran short on time - skipped {skipped}/{len(outside)} outside opponents' schedules")
 
@@ -629,6 +1014,16 @@ def _refresh(deadline):
         "rated_team_count": len({g["team_a"] for g in games} | {g["team_b"] for g in games}),
         "teams": teams,
         "warnings": warnings,
+        # How much MaxPreps this run actually touched (see the scrape cache).
+        "scrape_stats": {
+            "full": full,
+            "manual": manual,
+            "pages_fetched": _fetch_count,
+            "schedules_fetched": stats_fetched,
+            "schedules_from_cache": stats_cached,
+            "leagues_fetched": len(leagues_fetched),
+            "playoff_start": playoff_start.isoformat() if playoff_start else None,
+        },
     }
     table.put_item(Item=item)
 
@@ -720,14 +1115,27 @@ def handler(event, context):
     # CloudWatch rather than returning a 200-shaped error nobody reads.
     if "requestContext" not in event:
         remaining = context.get_remaining_time_in_millis() / 1000 if context else 900
-        # Hold the lock for the whole run (a scheduled run takes it too, so
-        # an admin POST during it is refused rather than overlapping).
-        table.put_item(Item={"cache_id": REFRESH_LOCK_ID, "started_at": int(time.time())})
+        # Hold the lock for the whole run, so runs never overlap. The
+        # admin's POST already took it and then invoked us with
+        # source=admin; any other run (the schedule, a CLI invoke - or a
+        # CLI retry of one) must take it itself and skips if a refresh is
+        # already running, rather than scraping the same pages twice.
+        if event.get("source") != "admin" and not _take_refresh_lock():
+            lock = table.get_item(Key={"cache_id": REFRESH_LOCK_ID}).get("Item") or {}
+            print(f"skipped: a refresh is already running (started_at={lock.get('started_at')})")
+            return {"skipped": True, "reason": "a refresh is already running", "refresh_started_at": lock.get("started_at")}
         try:
-            item = _refresh(time.time() + remaining - OUTSIDE_SCRAPE_RESERVE_SECONDS)
+            # {"full": true} (a manual invoke) ignores the scrape cache.
+            item = _refresh(
+                time.time() + remaining - OUTSIDE_SCRAPE_RESERVE_SECONDS,
+                full=bool(event.get("full")),
+                # POST /rankings (the admin's button) passes source=admin.
+                manual=event.get("source") == "admin",
+            )
         finally:
             table.delete_item(Key={"cache_id": REFRESH_LOCK_ID})
         return {
+            "scrape_stats": item["scrape_stats"],
             "teams": len(item["teams"]),
             "games": item["game_count"],
             "rated_games": item["rated_game_count"],
