@@ -22,8 +22,7 @@
   (`gameLocation()` in `site.js`) resolve `location_id` against a live
   `/locations` fetch first and only fall back to the stored `location`/
   `address` text when there's no match (a deleted Location, or a game that
-  predates `location_id`/is unmapped, e.g. the "San Gabriel Tournament"
-  games) — this is what makes renaming a
+  predates `location_id`/is unmapped) — this is what makes renaming a
   Location in the admin UI instantly update every game already linked to
   it, everywhere it's displayed, with no re-save needed. `address` (via
   either path) is used to build the Google Maps search link —
@@ -328,9 +327,7 @@ none of them re-ran automatically or safely re-ran at all (most `put_item`
 new rows rather than upsert). `Locations` is the live source of truth for
 game addresses today, populated by hand through the admin's Season →
 Locations tab — the old scraped/hardcoded address mappings are gone with
-the scripts that wrote them. The 4 "San Gabriel Tournament" games still
-have no confirmed address/Location — fill in through the admin UI once
-known.
+the scripts that wrote them.
 
 `scripts/seed_allowlist.py` is the one script still in the repo — see
 `AdminAllowlist` above; it's an ongoing CLI, not a one-off.
