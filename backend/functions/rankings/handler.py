@@ -956,7 +956,14 @@ def _refresh(deadline, full=False, manual=False):
 
     # Rank only tracked teams - untracked opponents are rated (they still
     # link tracked teams together) but are mostly one- or two-game samples.
-    srs_rank = _rank([(t, srs.get(t, 0.0)) for t in tracked])
+    # Teams with no games yet sit at the prior's exact 0.0, so ranking them
+    # would take numbers mid-table that the public page (which lists them
+    # last, unranked) then skips - rank them after every team that's played.
+    played_ids = [t for t in tracked if stats[t]["wins"] + stats[t]["losses"]]
+    srs_rank = _rank([(t, srs.get(t, 0.0)) for t in played_ids])
+    unplayed_ids = sorted((t for t in tracked if t not in srs_rank), key=lambda t: tracked[t]["name"])
+    for i, t in enumerate(unplayed_ids):
+        srs_rank[t] = len(played_ids) + i + 1
 
     teams = []
     for team_id, t in tracked.items():
