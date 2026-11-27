@@ -188,7 +188,9 @@ lists live as constants in `admin/app.js`.
   - **Refresh**: `GET /rankings` (public) serves the cache plus
     `refresh_started_at` while a run is live. Refreshes come from the daily
     EventBridge rule (`cron(30 17 * * ? *)` — 9:30am PST / 10:30am PDT,
-    just after the 9am "scores are in" mark), `aws lambda invoke
+    just after the 9am "scores are in" mark — skipped the morning after a
+    `NO_GAME_DATES` holiday, a set in `rankings/handler.py` to update each
+    season), `aws lambda invoke
     --function-name basketball-website-rankings --payload '{}' out.json`,
     or the admin's "Refresh from MaxPreps" button (League Standings tab),
     which also updates `Standings`. A

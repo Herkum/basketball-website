@@ -99,9 +99,9 @@ share `site.js`/`site.css`. `frontend/admin/` is the separate admin SPA
     date; the whole card opens `openNewsModal()`, calling
     `stopPropagation()` so the lightbox doesn't also open.
   - Then `.home-split`: the shortened standings card (`.standings-mini`,
-    overall W/L only, ranked by overall win pct, then wins, then fewest
-    losses — overall records include non-league games, so game counts
-    differ) and a random Sponsor Spotlight. Last, full width, by request:
+    overall W/L only, in Standings' own order — `compareStandingsRows`,
+    league record first — so the two never disagree) and a random Sponsor
+    Spotlight. Last, full width, by request:
     the Home block's body (the league blurb). Mission Statement isn't on
     Home; it has its own page.
 - **Standings**: the public page and the admin's League Standings table

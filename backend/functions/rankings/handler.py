@@ -171,6 +171,11 @@ MANUAL_MIN_SECONDS = 10 * 60
 # (Pacific) the next morning. The daily refresh runs just after it.
 SCORES_IN_BY_HOUR = 9
 PACIFIC_OFFSET_HOURS = -8
+# Days (Pacific, ISO) with no games anywhere - holidays. The daily
+# scheduled refresh the morning after one has no new scores to find, so it
+# skips; anything it would have re-checked (weekly rechecks, overdue
+# scores) just waits a day. Admin and CLI refreshes still run.
+NO_GAME_DATES = {"2026-11-26", "2026-12-24", "2026-12-25"}
 
 # Outside opponents (teams a tracked team played that aren't in a tracked
 # league) get their own schedules scraped too, one level out, so they're
@@ -1122,6 +1127,12 @@ def handler(event, context):
     # CloudWatch rather than returning a 200-shaped error nobody reads.
     if "requestContext" not in event:
         remaining = context.get_remaining_time_in_millis() / 1000 if context else 900
+        # The EventBridge rule passes its own scheduled event (source
+        # "aws.events") as the payload.
+        yesterday = (_now_pacific() - timedelta(days=1)).date().isoformat()
+        if event.get("source") == "aws.events" and yesterday in NO_GAME_DATES:
+            print(f"skipped: no games were played {yesterday}")
+            return {"skipped": True, "reason": f"no games were played {yesterday}"}
         # Hold the lock for the whole run, so runs never overlap. The
         # admin's POST already took it and then invoked us with
         # source=admin; any other run (the schedule, a CLI invoke - or a

@@ -660,19 +660,10 @@ async function initHomePage() {
     );
   }
 
-  // Abbreviated standings (Overall W-L only, best overall record first)
-  // beside a random Sponsor Spotlight - the full league table lives on
-  // standings.html, so Home only needs an at-a-glance version.
-  // Overall records include non-league games, so teams have played
-  // different numbers of games - rank by win pct (a 4-0 team above a
-  // 5-10 one), then more wins, then fewer losses (so 0-0 sits above 0-1).
-  const overallPct = ({ wins, losses }) => (wins + losses ? wins / (wins + losses) : 0);
-  const byOverall = (a, b) => {
-    const ar = parseRecord(a.overall_record);
-    const br = parseRecord(b.overall_record);
-    return overallPct(br) - overallPct(ar) || br.wins - ar.wins || ar.losses - br.losses || compareStandingsRows(a, b);
-  };
-  const standingsRows = [...(standings?.rows || [])].sort(byOverall);
+  // Abbreviated standings (Overall W-L only) beside a random Sponsor
+  // Spotlight - the full league table lives on standings.html, so Home only
+  // needs an at-a-glance version, in the same order as that table.
+  const standingsRows = [...(standings?.rows || [])].sort(compareStandingsRows);
   const spotlight = sponsors.length ? sponsors[Math.floor(Math.random() * sponsors.length)] : null;
 
   const homeCards = [];
